@@ -2,15 +2,15 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Baloo+2:wght@600;800&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
 /* Layout: mesa em coluna única — faixa de rivais no topo, o "tribunal" (situação + decisão) no centro, sua mão ancorada abaixo, registro da corte no fim */
 :root{
   --bg:#101219; --felt:#171a24; --panel:#1f2330; --raise:#282d3d; --line:#363c51;
   --fg:#ece5d3; --muted:#9b97a6; --gold:#d8aa4c; --gold-ink:#1c1507;
   --danger:#e25863; --ok:#62c184;
-  --duque:#f5a623; --assassino:#20b2a6; --capitao:#ff6f59; --embaixador:#9b7cf0; --condessa:#ff6fae;
-  --card-ink:#22182e; --card-paper:#fff7e8; --f-card:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --duque:#8a5a1c; --assassino:#3a4048; --capitao:#1f5560; --embaixador:#3c2f6b; --condessa:#7a2546;
+  --card-ink:#f3e6c6; --card-gold:#e3bf72;
   --f-display:"Marcellus SC","Cormorant SC",Georgia,"Times New Roman",serif;
   --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -63,26 +63,34 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .status-dot.done{color:var(--ok)}
 
 /* Cartas */
-.card{--c:var(--line);position:relative;border-radius:12px;background:var(--c);color:var(--card-ink);display:flex;flex-direction:column;align-items:center;text-align:center;overflow:hidden;box-shadow:0 2px 0 color-mix(in srgb,var(--c) 60%,#000),0 6px 14px rgba(0,0,0,.28);flex:none}
-.card .art{background:var(--card-paper);border-radius:9px;width:100%;flex:1;display:grid;place-items:center;overflow:hidden;
-  background-image:radial-gradient(circle at 50% 115%,color-mix(in srgb,var(--c) 35%,transparent) 0 45%,transparent 46%)}
-.card .art svg{width:92%;height:92%;display:block}
-.card.big{width:122px;height:178px;padding:5px;gap:4px}
-.card.mid{width:94px;height:136px;padding:4px;gap:3px}
-.card.tiny{width:32px;height:44px;padding:2px;border-radius:7px;box-shadow:none}
-.card.tiny .art{border-radius:5px}
-.card .cn{font-family:var(--f-card);font-weight:800;font-size:16px;line-height:1.1;background:#fff;border-radius:999px;padding:2px 10px 0;margin-top:-14px;position:relative;box-shadow:0 1px 0 rgba(0,0,0,.12)}
-.card.mid .cn{font-size:13.5px;padding:2px 8px 0;margin-top:-12px}
-.card .ca{font-size:10.5px;line-height:1.2;font-weight:600;padding:0 3px 3px}
-.card.dead{filter:grayscale(.9) brightness(.6)}
-.card.dead::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,transparent 46%,var(--danger) 46% 54%,transparent 54%)}
-.card.back,.card.hidden-face{--c:#3b2f7a;background:radial-gradient(#ffcf3f 1.6px,transparent 2.2px) 0 0/12px 12px,radial-gradient(#ff6fae 1.6px,transparent 2.2px) 6px 6px/12px 12px,#3b2f7a}
-.card.back::before,.card.hidden-face::before{content:"";position:absolute;inset:5px;border:2px solid rgba(255,255,255,.55);border-radius:8px}
-.card.tiny.back::before{inset:2px;border-width:1px;border-radius:5px}
-.card.hidden-face>*{visibility:hidden}
+.card{--c:var(--line);position:relative;border-radius:10px;color:var(--card-ink);display:flex;flex-direction:column;align-items:center;text-align:center;overflow:hidden;flex:none;
+  background:radial-gradient(120% 70% at 50% 38%,color-mix(in srgb,var(--c) 70%,#fff 10%) 0%,color-mix(in srgb,var(--c) 75%,#000) 62%,color-mix(in srgb,var(--c) 35%,#05050a) 100%);
+  border:1px solid color-mix(in srgb,var(--card-gold) 55%,#000);box-shadow:0 8px 18px rgba(0,0,0,.45)}
+.card::before{content:"";position:absolute;inset:4px;border:1px solid color-mix(in srgb,var(--card-gold) 65%,transparent);border-radius:7px;pointer-events:none}
+.card::after{content:"";position:absolute;inset:7px;border:1px solid color-mix(in srgb,var(--card-gold) 25%,transparent);border-radius:5px;pointer-events:none}
+.card .art{width:100%;flex:1;display:grid;place-items:center;min-height:0}
+.card .art svg{width:96%;height:96%;display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+.card.big{width:122px;height:178px;padding:10px 9px 11px;gap:3px}
+.card.mid{width:94px;height:136px;padding:8px 7px 9px;gap:2px}
+.card.tiny{width:32px;height:44px;padding:3px;border-radius:5px;box-shadow:none}
+.card.tiny::before{inset:1.5px;border-radius:4px}.card.tiny::after{display:none}
+.card .cn{font-family:var(--f-display);font-size:15px;letter-spacing:.08em;color:var(--card-gold);line-height:1.1;padding-top:3px;border-top:1px solid color-mix(in srgb,var(--card-gold) 40%,transparent);width:84%;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.card.mid .cn{font-size:12.5px;letter-spacing:.06em}
+.card .ca{font-size:10px;line-height:1.25;color:color-mix(in srgb,var(--card-ink) 85%,transparent);padding:0 2px}
+.card.dead{filter:grayscale(1) brightness(.5)}
+.card.dead .art::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,transparent 46.5%,var(--danger) 46.5% 53.5%,transparent 53.5%)}
+.card.dead .art{position:static}
+.card.back,.card.hidden-face{--c:#14172a;background:
+  repeating-linear-gradient(45deg,transparent 0 9px,color-mix(in srgb,var(--card-gold) 22%,transparent) 9px 10px),
+  repeating-linear-gradient(-45deg,transparent 0 9px,color-mix(in srgb,var(--card-gold) 22%,transparent) 9px 10px),
+  radial-gradient(circle at 50% 50%,#262a46,#0d0f1c 75%)}
+.card.back .emb,.card.hidden-face .emb{position:absolute;inset:0;display:grid;place-items:center}
+.card.back .emb i,.card.hidden-face .emb i{width:34%;aspect-ratio:1;transform:rotate(45deg);border:1.5px solid var(--card-gold);background:#0d0f1c;box-shadow:0 0 0 4px #0d0f1c,0 0 0 5px color-mix(in srgb,var(--card-gold) 55%,transparent)}
+.card.tiny.back .emb i{width:38%;border-width:1px;box-shadow:0 0 0 2px #0d0f1c}
+.card.hidden-face>*:not(.emb){visibility:hidden}
 .card.pick{cursor:pointer;transition:transform .12s}
-.card.pick:hover{transform:translateY(-3px) rotate(-1deg)}
-.card.sel{box-shadow:0 0 0 3px var(--gold),0 8px 20px rgba(0,0,0,.4);transform:translateY(-5px)}
+.card.pick:hover{transform:translateY(-3px)}
+.card.sel{box-shadow:0 0 0 3px var(--gold),0 10px 22px rgba(0,0,0,.5);transform:translateY(-5px)}
 .c-duque{--c:var(--duque)} .c-assassino{--c:var(--assassino)} .c-capitao{--c:var(--capitao)} .c-embaixador{--c:var(--embaixador)} .c-condessa{--c:var(--condessa)}
 @media (prefers-reduced-motion:reduce){.card.pick,.card.sel{transition:none;transform:none}}
 
@@ -543,84 +551,45 @@ const E = (() => {
 </script>
 <script>
 (function(){
-const PORTRAIT={
-duque:`<svg viewBox="0 0 100 100" aria-hidden="true">
-<circle cx="50" cy="60" r="26" fill="#f1c08e"/>
-<circle cx="35" cy="66" r="5" fill="#f08a6c" opacity=".55"/><circle cx="65" cy="66" r="5" fill="#f08a6c" opacity=".55"/>
-<rect x="36" y="6" width="28" height="27" rx="4" fill="#3a2c4f"/>
-<rect x="36" y="25" width="28" height="6" fill="#ffcf3f"/>
-<rect x="27" y="31" width="46" height="6" rx="3" fill="#3a2c4f"/>
-<path d="M37 49 q4 -3 8 0" stroke="#5a3b22" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-<path d="M55 49 q4 -3 8 0" stroke="#5a3b22" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-<circle cx="41" cy="56" r="3" fill="#2b2118"/><circle cx="59" cy="56" r="3" fill="#2b2118"/>
-<circle cx="59" cy="56" r="7" fill="none" stroke="#ffcf3f" stroke-width="2.2"/>
-<path d="M66 58 q4 9 -1 17" stroke="#ffcf3f" stroke-width="1.6" fill="none"/>
-<path d="M50 65 c-6 -5 -17 -3 -19 5 c7 -3 13 -1 19 -2 c6 1 12 -1 19 2 c-2 -8 -13 -10 -19 -5z" fill="#7a4a24"/>
-<path d="M44 75 q6 5 12 0" stroke="#8a3a28" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-<circle cx="82" cy="83" r="10" fill="#ffcf3f" stroke="#d08a10" stroke-width="2.4"/>
-<circle cx="82" cy="83" r="5" fill="none" stroke="#d08a10" stroke-width="1.8"/>
-<circle cx="18" cy="86" r="7" fill="#ffcf3f" stroke="#d08a10" stroke-width="2"/>
-</svg>`,
-assassino:`<svg viewBox="0 0 100 100" aria-hidden="true">
-<path d="M16 96 C14 52 28 14 50 12 C72 14 86 52 84 96Z" fill="#17565b"/>
-<circle cx="50" cy="58" r="23" fill="#c98b5e"/>
-<circle cx="36" cy="67" r="4.5" fill="#e0705a" opacity=".5"/><circle cx="64" cy="67" r="4.5" fill="#e0705a" opacity=".5"/>
-<rect x="26" y="47" width="48" height="13" rx="6.5" fill="#0f3a3e"/>
-<ellipse cx="41" cy="53.5" rx="5" ry="3.6" fill="#ffffff"/><ellipse cx="59" cy="53.5" rx="5" ry="3.6" fill="#ffffff"/>
-<circle cx="42.5" cy="53.8" r="2.2" fill="#1b1b1b"/><circle cx="60.5" cy="53.8" r="2.2" fill="#1b1b1b"/>
-<path d="M40 69 q10 8 20 -1" stroke="#5a2e1a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-<path d="M57 70 l2 2" stroke="#5a2e1a" stroke-width="2" stroke-linecap="round"/>
-<path d="M78 58 L85 60 L80 84 L75 83Z" fill="#dfe7ea" stroke="#9fb0b6" stroke-width="1.2"/>
-<rect x="71" y="82" width="15" height="4" rx="2" fill="#ffcf3f"/>
-<rect x="76" y="85" width="5" height="9" rx="2" fill="#7a3f22"/>
-</svg>`,
-capitao:`<svg viewBox="0 0 100 100" aria-hidden="true">
-<circle cx="50" cy="58" r="25" fill="#e8b088"/>
-<path d="M25 58 C26 84 39 94 50 94 C61 94 74 84 75 58 C68 70 59 72 50 72 C41 72 32 70 25 58Z" fill="#a0522d"/>
-<path d="M42 64 c3 -3 13 -3 16 0 c-5 2 -11 2 -16 0z" fill="#a0522d"/>
-<path d="M44 75 q6 4 12 0" stroke="#fde3cc" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-<circle cx="35" cy="62" r="4.5" fill="#f08a6c" opacity=".5"/><circle cx="65" cy="62" r="4.5" fill="#f08a6c" opacity=".5"/>
-<circle cx="41" cy="54" r="3" fill="#2b2118"/>
-<path d="M55 54 q4 3 8 0" stroke="#2b2118" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-<path d="M36 47 h9 M55 47 h9" stroke="#6b3a1f" stroke-width="3" stroke-linecap="round"/>
-<path d="M20 40 C22 18 78 18 80 40Z" fill="#ffffff" stroke="#d8dde6" stroke-width="1.5"/>
-<rect x="20" y="35" width="60" height="8" rx="3" fill="#20304a"/>
-<path d="M26 43 Q50 54 74 43 L74 46 Q50 58 26 46Z" fill="#20304a"/>
-<circle cx="50" cy="31" r="6" fill="#ffcf3f"/>
-<path d="M50 27 v8 M47 33 q3 3 6 0 M47.5 29 h5" stroke="#20304a" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-</svg>`,
-embaixador:`<svg viewBox="0 0 100 100" aria-hidden="true">
-<circle cx="50" cy="56" r="24" fill="#8d5a3b"/>
-<path d="M25 54 C22 30 38 22 52 24 C68 24 79 34 75 54 C72 42 62 37 50 37 C46 37 44 33 40 35 C33 38 28 44 25 54Z" fill="#1f1a2e"/>
-<circle cx="36" cy="63" r="4.5" fill="#d0705a" opacity=".5"/><circle cx="64" cy="63" r="4.5" fill="#d0705a" opacity=".5"/>
-<circle cx="41" cy="54" r="7.5" fill="#ffffff" fill-opacity=".35" stroke="#2a2340" stroke-width="2.6"/>
-<circle cx="59" cy="54" r="7.5" fill="#ffffff" fill-opacity=".35" stroke="#2a2340" stroke-width="2.6"/>
-<path d="M48.5 54 h3" stroke="#2a2340" stroke-width="2.6"/>
-<circle cx="41" cy="54.5" r="2.4" fill="#1b1b1b"/><circle cx="59" cy="54.5" r="2.4" fill="#1b1b1b"/>
-<path d="M43 68 q7 6 14 0" stroke="#4a2414" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-<path d="M36 84 L48 89 L36 94Z M64 84 L52 89 L64 94Z" fill="#ffcf3f" stroke="#d08a10" stroke-width="1.4"/>
-<circle cx="50" cy="89" r="3.5" fill="#d08a10"/>
-<rect x="74" y="66" width="16" height="22" rx="3" fill="#fff7e8" stroke="#c9b9e8" stroke-width="1.6" transform="rotate(12 82 77)"/>
-<path d="M77 72 h9 M77 76 h9 M77 80 h6" stroke="#9a7be0" stroke-width="1.5" stroke-linecap="round" transform="rotate(12 82 77)"/>
-</svg>`,
-condessa:`<svg viewBox="0 0 100 100" aria-hidden="true">
-<circle cx="50" cy="58" r="30" fill="#6a2c48"/>
-<circle cx="50" cy="20" r="13" fill="#6a2c48"/>
-<circle cx="61" cy="13" r="5" fill="#ffcf3f"/>
-<circle cx="56" cy="9" r="3.4" fill="#ff8fbf"/><circle cx="66" cy="9" r="3.4" fill="#ff8fbf"/><circle cx="56" cy="17" r="3.4" fill="#ff8fbf"/><circle cx="66" cy="17" r="3.4" fill="#ff8fbf"/>
-<circle cx="61" cy="13" r="2.6" fill="#ffcf3f"/>
-<circle cx="50" cy="60" r="22" fill="#f3cfb0"/>
-<path d="M28 54 C30 38 44 34 52 38 C58 34 70 38 72 54 C64 46 56 44 50 46 C44 44 36 46 28 54Z" fill="#6a2c48"/>
-<circle cx="37" cy="66" r="4.5" fill="#f07a9c" opacity=".55"/><circle cx="63" cy="66" r="4.5" fill="#f07a9c" opacity=".55"/>
-<path d="M37 58 q4 4 8 0 M55 58 q4 4 8 0" stroke="#2b2118" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-<path d="M37 58 l-2 -2 M63 58 l2 -2" stroke="#2b2118" stroke-width="1.6" stroke-linecap="round"/>
-<path d="M45 70 q5 -2.5 10 0 q-5 5 -10 0z" fill="#e0457b"/>
-<circle cx="28" cy="70" r="3" fill="#1fbfb0"/><circle cx="72" cy="70" r="3" fill="#1fbfb0"/>
-<path d="M14 96 L30 80 L36 96Z" fill="#ffcf3f"/>
-<path d="M14 96 A22 22 0 0 1 36 74 L30 96Z" fill="#ffe28a" stroke="#d08a10" stroke-width="1.2"/>
-<path d="M30 96 L20 82 M30 96 L26 77 M30 96 L33 76" stroke="#d08a10" stroke-width="1"/>
-</svg>`
-};
+const PORTRAIT=(()=>{
+  const defs=`<defs><linearGradient id="gld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6dc9c"/><stop offset=".5" stop-color="#d4a24c"/><stop offset="1" stop-color="#9a6a24"/></linearGradient>
+<linearGradient id="slv" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8f979f"/><stop offset=".5" stop-color="#eef1f3"/><stop offset="1" stop-color="#9aa2aa"/></linearGradient></defs>`;
+  let r=''; for(let i=0;i<24;i++){const a=i*Math.PI/12, c=Math.cos(a), s=Math.sin(a);
+    r+=`<line x1="${(50+c*31).toFixed(1)}" y1="${(50+s*31).toFixed(1)}" x2="${(50+c*(i%2?40:47)).toFixed(1)}" y2="${(50+s*(i%2?40:47)).toFixed(1)}"/>`;}
+  const rays=`<g stroke="#d4a24c" stroke-opacity=".35" stroke-width="1">${r}</g><circle cx="50" cy="50" r="29" fill="none" stroke="#d4a24c" stroke-opacity=".45" stroke-width=".8"/><circle cx="50" cy="50" r="26.5" fill="none" stroke="#d4a24c" stroke-opacity=".25" stroke-width=".6"/>`;
+  const wrap=b=>`<svg viewBox="0 0 100 100" aria-hidden="true">${defs}${rays}${b}</svg>`;
+  const coin=y=>`<path d="M31 ${y} v5 a19 5.5 0 0 0 38 0 v-5" fill="#8a5d1e" stroke="#3a2608" stroke-width=".8"/><ellipse cx="50" cy="${y}" rx="19" ry="5.5" fill="url(#gld)" stroke="#3a2608" stroke-width=".8"/><ellipse cx="50" cy="${y}" rx="13" ry="3.4" fill="none" stroke="#8a5d1e" stroke-width=".8"/>`;
+  const saber=`<path d="M48.5 80 Q47 46 55 16 L57.5 17 Q51.5 46 52 80Z" fill="url(#slv)" stroke="#3c4248" stroke-width=".7"/><path d="M42 80 h17 v3.5 h-17z" fill="url(#gld)" stroke="#3a2608" stroke-width=".7"/><path d="M42 81.5 q-6 6 2 11" fill="none" stroke="url(#gld)" stroke-width="2"/><rect x="47.5" y="83.5" width="6" height="9" rx="1.5" fill="#3a2a1a"/><circle cx="50.5" cy="94" r="2.6" fill="url(#gld)"/>`;
+  return {
+duque: wrap(`${coin(76)}${coin(68)}${coin(60)}
+<path d="M33 52 L30 30 L41 40 L50 23 L59 40 L70 30 L67 52 Z" fill="url(#gld)" stroke="#3a2608" stroke-width="1"/>
+<rect x="32.5" y="50" width="35" height="6" rx="1.5" fill="url(#gld)" stroke="#3a2608" stroke-width="1"/>
+<circle cx="30" cy="29" r="2.4" fill="url(#gld)" stroke="#3a2608" stroke-width=".7"/><circle cx="50" cy="21.5" r="2.6" fill="url(#gld)" stroke="#3a2608" stroke-width=".7"/><circle cx="70" cy="29" r="2.4" fill="url(#gld)" stroke="#3a2608" stroke-width=".7"/>
+<circle cx="50" cy="53" r="2" fill="#8e1b2c"/><circle cx="41" cy="53" r="1.5" fill="#1c5a6b"/><circle cx="59" cy="53" r="1.5" fill="#1c5a6b"/>`),
+assassino: wrap(`<circle cx="50" cy="14" r="5" fill="url(#gld)" stroke="#3a2608" stroke-width=".8"/>
+<rect x="46" y="18" width="8" height="17" rx="2" fill="#2a1c12" stroke="#120b06" stroke-width=".6"/>
+<path d="M46 22 l8 3 M46 27 l8 3 M46 32 l8 3" stroke="#5a3a20" stroke-width="1"/>
+<path d="M30 35 h40 l-3 5 h-34z" fill="url(#gld)" stroke="#3a2608" stroke-width=".9"/>
+<path d="M44.5 40 L55.5 40 L54 74 L50 86 L46 74 Z" fill="url(#slv)" stroke="#3c4248" stroke-width=".8"/>
+<path d="M50 41 V78" stroke="#7d858d" stroke-width="1"/>
+<path d="M50 89 c-2.6 3.6 -3.6 5.6 -3.6 7 a3.6 3.6 0 0 0 7.2 0 c0 -1.4 -1 -3.4 -3.6 -7z" fill="#a3172b"/>`),
+capitao: wrap(`<g transform="rotate(-32 50 55)">${saber}</g><g transform="rotate(32 50 55) translate(100 0) scale(-1 1)">${saber}</g>
+<path d="M50 40 l3.2 7 7.6 .8 -5.7 5.1 1.6 7.5 -6.7 -3.9 -6.7 3.9 1.6 -7.5 -5.7 -5.1 7.6 -.8z" fill="url(#gld)" stroke="#3a2608" stroke-width=".9"/>`),
+embaixador: wrap(`<path d="M70 14 C58 22 48 40 40 66 L43 67 C50 44 60 27 72 17Z" fill="#efe4cc" stroke="#7a6a50" stroke-width=".7"/>
+<path d="M70 14 C66 26 58 36 48 46 M66 20 L58 22 M63 26 L54 29 M59 33 L50 36" stroke="#a89878" stroke-width=".8" fill="none"/>
+<path d="M40 66 L37 76" stroke="url(#gld)" stroke-width="2" stroke-linecap="round"/>
+<rect x="24" y="42" width="52" height="34" rx="2" fill="#efe4cc" stroke="#7a6a50" stroke-width="1"/>
+<path d="M24 43 L50 63 L76 43" fill="none" stroke="#a89878" stroke-width="1.2"/>
+<path d="M24 75 L42 58 M76 75 L58 58" stroke="#c9bb9c" stroke-width="1"/>
+<circle cx="50" cy="62" r="8" fill="#8e1b2c" stroke="#5a0f1b" stroke-width="1"/>
+<circle cx="50" cy="62" r="4.6" fill="none" stroke="#c94a5c" stroke-width="1"/>
+<path d="M47.5 62 h5 M50 59.5 v5" stroke="#c94a5c" stroke-width="1"/>`),
+condessa: wrap(`<g fill="url(#gld)" stroke="#3a2608" stroke-width=".6">${[-60,-40,-20,0,20,40,60].map(a=>`<path d="M50 70 L46.5 36 Q50 31 53.5 36 Z" transform="rotate(${a} 50 70)"/>`).join('')}</g>
+<path d="M22 54 C30 42 42 44 50 50 C58 44 70 42 78 54 C74 62 64 66 56 62 C53 60 51 60 50 62 C49 60 47 60 44 62 C36 66 26 62 22 54Z M32 53.5 C35 49 41 49 44 53 C41 57 35 57 32 53.5Z M56 53 C59 49 65 49 68 53.5 C65 57 59 57 56 53Z" fill="#1a1420" fill-rule="evenodd" stroke="url(#gld)" stroke-width="1.6"/>
+<path d="M22 54 C17 50 15 45 17 41" fill="none" stroke="url(#gld)" stroke-width="1.4"/>
+<g fill="#f3ead8" stroke="#b9ad96" stroke-width=".4">${[30,37,44,50,56,63,70].map((x,i)=>`<circle cx="${x}" cy="${74+Math.round(Math.sin(i/6*Math.PI)*7)}" r="2.6"/>`).join('')}</g>`)
+  };
+})();
 const ICON=PORTRAIT;
 const CH=E.CH, ACT=E.ACT;
 const $=s=>document.querySelector(s);
@@ -751,9 +720,9 @@ async function send(k,x){
 
 /* ---------- Desenho ---------- */
 function cardHTML(t,o){o=o||{};
-  if(o.back) return `<div class="card ${o.size||'mid'} back"></div>`;
+  if(o.back) return `<div class="card ${o.size||'mid'} back"><div class="emb"><i></i></div></div>`;
   const c=CH[t]; const size=o.size||'mid';
-  const inner = size==='tiny' ? `<div class="art">${ICON[t]}</div>` : `<div class="art">${ICON[t]}</div><div class="cn">${c.n}</div>${size==='big'?`<div class="ca">${esc(c.a||c.b)}</div>`:''}`;
+  const inner = (o.hide?'<div class="emb"><i></i></div>':'')+(size==='tiny' ? `<div class="art">${ICON[t]}</div>` : `<div class="art">${ICON[t]}</div><div class="cn">${c.n}</div>${size==='big'?`<div class="ca">${esc(c.a||c.b)}</div>`:''}`);
   return `<div class="card ${size} c-${t}${o.dead?' dead':''}${o.pick?' pick':''}${o.sel?' sel':''}${o.hide?' hidden-face':''}" ${o.attr||''} title="${c.n}">${inner}</div>`;
 }
 const claimTag=t=>`<span class="claim c-${t}" style="--c:var(--${t})">${CH[t].n}</span>`;
@@ -761,7 +730,7 @@ const coins=n=>`<span class="coins"><span class="coin"></span>${n}</span>`;
 
 function paintRef(){
   $('#refcards').innerHTML=E.TYPES.map(t=>`<div class="item">${cardHTML(t,{size:'tiny'})}<p><b>${CH[t].n}</b><br>${esc(CH[t].a||'Sem ação própria')}${CH[t].b?'<br><span class="muted">'+esc(CH[t].b)+'</span>':''}</p></div>`).join('')+
-  `<div class="item"><div class="card tiny back"></div><p><b>Ações gerais</b><br>Renda +1 · Ajuda Externa +2 (Duque bloqueia) · Golpe por 7 (ninguém bloqueia)</p></div>`;
+  `<div class="item"><div class="card tiny back"><div class="emb"><i></i></div></div><p><b>Ações gerais</b><br>Renda +1 · Ajuda Externa +2 (Duque bloqueia) · Golpe por 7 (ninguém bloqueia)</p></div>`;
 }
 
 function render(){
