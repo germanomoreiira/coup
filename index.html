@@ -1,0 +1,853 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101219"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style><script>window.COUP_WEB=1</script><script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script><script>if(typeof mqtt==="undefined")document.write('<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"><\/script>')</script></head><body><title>Coup da Casa</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: mesa em coluna única — faixa de rivais no topo, o "tribunal" (situação + decisão) no centro, sua mão ancorada abaixo, registro da corte no fim */
+:root{
+  --bg:#101219; --felt:#171a24; --panel:#1f2330; --raise:#282d3d; --line:#363c51;
+  --fg:#ece5d3; --muted:#9b97a6; --gold:#d8aa4c; --gold-ink:#1c1507;
+  --danger:#e25863; --ok:#62c184;
+  --duque:#8b55c4; --assassino:#6b6e7a; --capitao:#3a7fcb; --embaixador:#44a05e; --condessa:#c9404c;
+  --f-display:"Marcellus SC","Cormorant SC",Georgia,"Times New Roman",serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:780px;margin:0 auto;padding-block:14px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--f-display);font-weight:400;margin:0;text-wrap:balance}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* Cabeçalho */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{font-size:28px;letter-spacing:.06em;color:var(--gold)}
+.brand span{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.chip{font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.chip.live{border-color:color-mix(in srgb,var(--ok) 50%,transparent);color:var(--ok)}
+.chip.warn{border-color:color-mix(in srgb,var(--danger) 50%,transparent);color:var(--danger)}
+
+/* Superfícies */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* Botões */
+.btn{border:1px solid var(--line);background:var(--raise);border-radius:10px;padding:11px 14px;font-weight:600;min-height:44px}
+.btn:hover{border-color:var(--gold)}
+.btn:disabled{opacity:.38;cursor:not-allowed;border-color:var(--line)}
+.btn.gold{background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
+.btn.danger{background:color-mix(in srgb,var(--danger) 22%,var(--raise));border-color:color-mix(in srgb,var(--danger) 60%,transparent)}
+.btn.ghost{background:transparent}
+.btn.small{min-height:34px;padding:6px 10px;font-size:13px}
+.input{width:100%;min-width:0;background:var(--felt);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;color:var(--fg)}
+
+/* Rivais */
+.rivals{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.seat{background:var(--felt);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.seat.turn{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.seat.out{opacity:.45}
+.seat .who{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.seat .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.coins{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-weight:700;color:var(--gold)}
+.coin{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f3d48a,var(--gold) 55%,#8a6420);flex:none}
+.mini{display:flex;gap:5px}
+.status-dot{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.status-dot.done{color:var(--ok)}
+
+/* Cartas */
+.card{--c:var(--line);position:relative;border-radius:10px;border:1px solid color-mix(in srgb,var(--c) 70%,#000);background:
+  linear-gradient(160deg,color-mix(in srgb,var(--c) 85%,#fff 5%),color-mix(in srgb,var(--c) 55%,#000));
+  color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;overflow:hidden}
+.card.big{width:118px;height:168px;padding:12px 8px}
+.card.mid{width:92px;height:130px;padding:9px 6px}
+.card.tiny{width:30px;height:42px;padding:3px;border-radius:6px}
+.card svg{width:46%;height:auto;opacity:.95}
+.card.tiny svg{width:70%;margin:auto}
+.card .cn{font-family:var(--f-display);font-size:16px;letter-spacing:.04em}
+.card.mid .cn{font-size:14px}
+.card .ca{font-size:10.5px;line-height:1.25;opacity:.9}
+.card.dead{filter:grayscale(.85) brightness(.55)}
+.card.dead::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,transparent 47%,var(--danger) 47% 53%,transparent 53%)}
+.card.back{--c:#2a2440;background:repeating-linear-gradient(45deg,#231f37 0 6px,#2c2645 6px 12px);border-color:color-mix(in srgb,var(--gold) 45%,#000)}
+.card.back::before{content:"";position:absolute;inset:4px;border:1px solid color-mix(in srgb,var(--gold) 50%,transparent);border-radius:6px}
+.card.tiny.back::before{inset:2px;border-radius:4px}
+.card.pick{cursor:pointer;transition:transform .12s}
+.card.pick:hover{transform:translateY(-3px)}
+.card.sel{box-shadow:0 0 0 3px var(--gold),0 6px 18px rgba(0,0,0,.4);transform:translateY(-4px)}
+.card.hidden-face{background:repeating-linear-gradient(45deg,#231f37 0 6px,#2c2645 6px 12px);color:transparent}
+.card.hidden-face svg{opacity:0}
+.c-duque{--c:var(--duque)} .c-assassino{--c:var(--assassino)} .c-capitao{--c:var(--capitao)} .c-embaixador{--c:var(--embaixador)} .c-condessa{--c:var(--condessa)}
+@media (prefers-reduced-motion:reduce){.card.pick,.card.sel{transition:none;transform:none}}
+
+/* Tribunal */
+.court{background:var(--felt);border:1px solid color-mix(in srgb,var(--gold) 35%,var(--line));border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.headline{font-family:var(--f-display);font-size:22px;line-height:1.25}
+.headline b{color:var(--gold);font-weight:400}
+.claim{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;color:#fff;background:var(--c);vertical-align:middle;font-family:var(--f-body)}
+.actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:8px}
+.act{text-align:left;display:flex;flex-direction:column;gap:3px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--raise);min-height:72px}
+.act:hover:not(:disabled){border-color:var(--gold)}
+.act:disabled{opacity:.35;cursor:not-allowed}
+.act .t{font-weight:700}
+.act .f{font-size:12.5px;color:var(--muted)}
+.act .k{font-size:11px;font-weight:600;letter-spacing:.04em;align-self:flex-start;margin-top:2px;padding:1px 7px;border-radius:999px;color:#fff;background:var(--c)}
+.act .k.free{background:transparent;color:var(--muted);border:1px solid var(--line)}
+
+/* Mão */
+.hand{display:flex;gap:12px;flex-wrap:wrap}
+.mybar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.bigcoins{font-family:var(--f-mono);font-size:30px;font-weight:700;color:var(--gold);display:flex;align-items:center;gap:8px}
+.bigcoins .coin{width:22px;height:22px}
+
+/* Registro */
+.log{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto;font-size:14px}
+.log div{padding-left:10px;border-left:2px solid var(--line)}
+.log div:first-child{border-left-color:var(--gold);color:var(--fg)}
+.log div{color:var(--muted)}
+
+/* Regras */
+details.rules summary{cursor:pointer;font-weight:600;list-style:none}
+details.rules summary::-webkit-details-marker{display:none}
+.ref{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ref .item{display:flex;gap:10px;align-items:flex-start}
+.ref p{margin:0;font-size:13.5px}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+
+.lobbylist{display:flex;flex-direction:column;gap:6px}
+.lobbylist .p{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;background:var(--felt);border:1px solid var(--line);border-radius:10px}
+.banner{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--raise);font-size:14px}
+.banner.warn{border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
+.winner{font-family:var(--f-display);font-size:30px;color:var(--gold);text-align:center}
+.reveal{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+@media (max-width:420px){.card.big{width:100px;height:146px}.headline{font-size:19px}.brand h1{font-size:24px}}
+</style>
+
+<div class="wrap" id="root">
+  <header class="top">
+    <div class="brand"><h1>Coup</h1><span>da casa</span></div>
+    <div class="row" id="conn"><span class="chip">Conectando…</span></div>
+  </header>
+  <section id="joinbox" class="panel" hidden>
+    <h2 style="font-size:20px">Sente-se à mesa</h2>
+    <form id="joinform" class="row" autocomplete="off">
+      <input id="nameinput" class="input" style="flex:1 1 200px" maxlength="18" placeholder="Seu apelido" aria-label="Seu apelido">
+      <button class="btn gold" type="submit">Entrar na mesa</button>
+    </form>
+    <p class="muted" style="margin:0;font-size:13px">De 2 a 10 jogadores. Cada um abre este jogo no próprio celular.</p>
+  </section>
+  <main id="app" style="display:flex;flex-direction:column;gap:16px">
+    <section class="court">
+      <div class="label">Preparando a corte</div>
+      <div class="headline">Conectando à mesa compartilhada…</div>
+      <p class="muted" style="margin:0">Se a conexão não vier, você ainda pode jogar todos no mesmo aparelho.</p>
+      <div class="row"><button class="btn" data-do="localmode">Jogar neste aparelho</button></div>
+    </section>
+  </main>
+  <details class="panel rules" id="rules">
+    <summary>Cartas e regras</summary>
+    <div class="ref" id="refcards"></div>
+    <ul>
+      <li>Cada jogador começa com 2 cartas viradas (influências) e 2 moedas. Perdeu as duas, está fora. O último com influência vence.</li>
+      <li>Na sua vez, escolha uma ação. Você pode alegar qualquer personagem, tendo ou não a carta.</li>
+      <li><b>Desafio:</b> se o desafiado tiver a carta, ele a mostra, troca por outra do baralho, e quem desafiou perde uma influência. Se não tiver, ele perde uma influência.</li>
+      <li>Bloqueios também podem ser desafiados. Primeiro se resolvem os desafios à ação, depois os bloqueios.</li>
+      <li>Com 10 moedas ou mais no início da vez, o Golpe de Estado é obrigatório.</li>
+      <li>Se o Assassino for desafiado e estiver blefando, as 3 moedas voltam. Se o assassinato for bloqueado pela Condessa, as moedas são perdidas.</li>
+      <li><b>2 jogadores:</b> variante oficial (cada um escolhe 1 carta de um conjunto com os 5 personagens; quem começa tem 1 moeda). <b>3–6:</b> 15 cartas. <b>7–8:</b> 20 cartas. <b>9–10:</b> 25 cartas.</li>
+    </ul>
+  </details>
+</div>
+
+<script>
+/* Motor de regras do Coup (jogo base). Funções puras sobre o estado: recebem uma cópia, devolvem o novo estado ou null (jogada inválida). */
+const E = (() => {
+  const TYPES = ['duque', 'assassino', 'capitao', 'embaixador', 'condessa'];
+  const CH = {
+    duque:      { n: 'Duque',      a: 'Taxar: pega 3 moedas',                  b: 'Bloqueia Ajuda Externa' },
+    assassino:  { n: 'Assassino',  a: 'Assassinar: paga 3, alvo perde 1 influência', b: '' },
+    capitao:    { n: 'Capitão',    a: 'Extorquir: rouba 2 moedas',             b: 'Bloqueia Extorsão' },
+    embaixador: { n: 'Embaixador', a: 'Trocar: compra 2 e devolve 2',          b: 'Bloqueia Extorsão' },
+    condessa:   { n: 'Condessa',   a: '',                                      b: 'Bloqueia Assassinato' }
+  };
+  const ACT = {
+    income:      { label: 'Renda',          fx: '+1 moeda' },
+    foreign:     { label: 'Ajuda Externa',  fx: '+2 moedas', block: ['duque'], blockAny: true },
+    coup:        { label: 'Golpe de Estado', fx: 'Paga 7, alvo perde 1 influência', cost: 7, target: true },
+    tax:         { label: 'Taxar',          fx: '+3 moedas', claim: 'duque' },
+    assassinate: { label: 'Assassinar',     fx: 'Paga 3, alvo perde 1 influência', claim: 'assassino', cost: 3, target: true, block: ['condessa'] },
+    steal:       { label: 'Extorquir',      fx: 'Rouba até 2 moedas', claim: 'capitao', target: true, block: ['capitao', 'embaixador'] },
+    exchange:    { label: 'Trocar',         fx: 'Compra 2, devolve 2', claim: 'embaixador' }
+  };
+
+  let RNG = null, NOW = null;
+  function rnd(n) {
+    if (RNG) return RNG(n);
+    try { const a = new Uint32Array(1); globalThis.crypto.getRandomValues(a); return a[0] % n; }
+    catch (e) { return Math.floor(Math.random() * n); }
+  }
+  const now = () => (NOW != null ? NOW : Date.now());
+  /* Contexto determinístico: mesmo estado + mesmo evento = mesmo resultado em todos os aparelhos */
+  function withCtx(seed, t, fn) {
+    const ctx = { seed: (seed >>> 0) || 1 };
+    RNG = n => { ctx.seed = (ctx.seed + 0x6D2B79F5) >>> 0; let x = ctx.seed; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) % n; };
+    NOW = t;
+    try { return [fn(), ctx.seed]; } finally { RNG = null; NOW = null; }
+  }
+  function hashStr(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function newKey() { return now().toString(36) + rnd(1e9).toString(36); }
+  const P = (s, id) => s.players.find(p => p.id === id);
+  const alive = p => !!(p && p.cards && p.cards.some(c => !c.dead));
+  const live = p => p.cards.map((c, i) => (c.dead ? -1 : i)).filter(i => i >= 0);
+  const nm = (s, id) => (P(s, id) || {}).name || '?';
+  function log(s, m) { s.log.push({ t: now(), m }); if (s.log.length > 120) s.log.splice(0, s.log.length - 120); }
+  function blank() { return { phase: 'lobby', players: [], waiting: [], log: [], deck: [], turn: 0, pending: null, lose: [], v: 0, game: 0 }; }
+  function setKey(pd) { pd.key = newKey(); pd.since = now(); }
+
+  /* ---------- Saguão ---------- */
+  function join(s, id, name) {
+    s = s || blank();
+    s.waiting = s.waiting || [];
+    name = String(name || '').trim().slice(0, 18) || 'Jogador';
+    const p = P(s, id);
+    if (p) { if (p.name === name) return null; p.name = name; return s; }
+    if (s.phase !== 'lobby') {
+      const w = s.waiting.find(x => x.id === id);
+      if (w) { if (w.name === name) return null; w.name = name; return s; }
+      s.waiting.push({ id, name }); return s;
+    }
+    if (s.players.length >= 10) return null;
+    s.players.push({ id, name });
+    log(s, `${name} entrou na mesa.`);
+    return s;
+  }
+  function leave(s, id) {
+    if (!s) return null;
+    s.waiting = (s.waiting || []).filter(x => x.id !== id);
+    if (s.phase !== 'lobby') return s;
+    const p = P(s, id); if (!p) return s;
+    s.players = s.players.filter(x => x.id !== id);
+    log(s, `${p.name} saiu da mesa.`);
+    return s;
+  }
+  function toLobby(s) {
+    if (!s) return null;
+    s.phase = 'lobby'; s.pending = null; s.lose = []; s.setup = null; s.deck = [];
+    s.players.forEach(p => { delete p.cards; delete p.coins; });
+    (s.waiting || []).forEach(w => { if (!P(s, w.id) && s.players.length < 10) s.players.push({ id: w.id, name: w.name }); });
+    s.waiting = [];
+    return s;
+  }
+  function deckPer(n) { return n <= 6 ? 3 : n <= 8 ? 4 : 5; }
+
+  function start(s) {
+    if (!s || s.phase !== 'lobby') return null;
+    const n = s.players.length; if (n < 2 || n > 10) return null;
+    let si = s.players.findIndex(p => p.id === s.lastWinner); if (si < 0) si = rnd(n);
+    s.game = (s.game || 0) + 1; s.log = []; s.pending = null; s.lose = []; s.winner = null; s.turn = si; s.setup = null;
+    s.players.forEach(p => { p.coins = 2; p.cards = []; });
+    if (n === 2) {
+      const sets = [0, 1, 2].map(() => shuffle(TYPES.slice()));
+      s.setup = { sets: { [s.players[0].id]: sets[0], [s.players[1].id]: sets[1] }, third: sets[2], picks: {} };
+      s.players[si].coins = 1; s.players[1 - si].coins = 2;
+      s.deck = []; s.phase = 'setup2p';
+      log(s, 'Variante oficial para 2 jogadores: cada um escolhe 1 carta do seu conjunto de 5; a outra vem do terceiro conjunto.');
+      log(s, `${s.players[si].name} começa com 1 moeda; o outro jogador, com 2.`);
+    } else {
+      const per = deckPer(n);
+      s.deck = shuffle(TYPES.flatMap(t => Array(per).fill(t)));
+      s.players.forEach(p => { p.cards = [{ c: s.deck.pop(), dead: false }, { c: s.deck.pop(), dead: false }]; });
+      s.phase = 'play';
+      log(s, `Partida iniciada: ${n} jogadores, baralho de ${per * 5} cartas (${per} de cada personagem).`);
+      log(s, `${s.players[si].name} começa.`);
+    }
+    return s;
+  }
+  function pick2p(s, id, idx) {
+    if (!s || s.phase !== 'setup2p' || !s.setup) return null;
+    const set = s.setup.sets[id]; if (!set || s.setup.picks[id] || set[idx] == null) return null;
+    s.setup.picks[id] = set[idx];
+    log(s, `${nm(s, id)} escolheu sua carta.`);
+    if (Object.keys(s.setup.picks).length === 2) {
+      const third = shuffle(s.setup.third.slice());
+      s.players.forEach(p => { p.cards = shuffle([{ c: s.setup.picks[p.id], dead: false }, { c: third.pop(), dead: false }]); });
+      s.deck = third; s.setup = null; s.phase = 'play';
+      log(s, `Cartas distribuídas. Baralho da corte com ${s.deck.length} cartas. ${s.players[s.turn].name} começa.`);
+    }
+    return s;
+  }
+
+  /* ---------- Turno ---------- */
+  function checkWin(s) {
+    if (s.phase === 'over') return true;
+    const al = s.players.filter(alive);
+    if (al.length <= 1) {
+      s.phase = 'over'; s.winner = al[0] ? al[0].id : null; s.lastWinner = s.winner;
+      s.pending = null; s.lose = [];
+      log(s, al[0] ? `${al[0].name} venceu a partida!` : 'Fim de partida.');
+      return true;
+    }
+    return false;
+  }
+  function endTurn(s) {
+    s.pending = null; s.lose = [];
+    if (checkWin(s)) return;
+    const n = s.players.length; let i = s.turn;
+    for (let k = 0; k < n; k++) { i = (i + 1) % n; if (alive(s.players[i])) break; }
+    s.turn = i;
+  }
+  function queueLose(s, id) { if (alive(P(s, id))) s.lose.push({ id }); }
+  function loseCard(s, p, i) {
+    p.cards[i].dead = true;
+    log(s, `${p.name} perde uma influência e revela ${CH[p.cards[i].c].n}.`);
+    if (!alive(p)) { p.coins = 0; log(s, `${p.name} foi eliminado.`); }
+  }
+
+  function declare(s, id, a, target) {
+    if (!s || s.phase !== 'play' || s.pending || (s.lose && s.lose.length)) return null;
+    const me = s.players[s.turn]; if (!me || me.id !== id || !alive(me)) return null;
+    const A = ACT[a]; if (!A) return null;
+    if (me.coins >= 10 && a !== 'coup') return null;
+    if (A.cost && me.coins < A.cost) return null;
+    let t = null;
+    if (A.target) { t = P(s, target); if (!alive(t) || t.id === id) return null; }
+    if (A.cost) me.coins -= A.cost;
+    const pd = { type: a, actor: id, target: t ? t.id : null, stage: 'wait', after: null };
+    setKey(pd);
+    s.pending = pd;
+    const claim = A.claim ? ` (alega ${CH[A.claim].n})` : '';
+    const vs = t ? ` contra ${t.name}` : '';
+    log(s, `${me.name} declara ${A.label}${vs}${claim}.`);
+    if (a === 'income') { me.coins += 1; endTurn(s); return s; }
+    if (a === 'coup') { queueLose(s, t.id); pd.after = 'end'; pump(s); return s; }
+    pd.stage = A.claim ? 'challengeAction' : 'block';
+    return s;
+  }
+
+  function eligible(s) {
+    const pd = s.pending; if (!pd) return [];
+    const others = ex => s.players.filter(p => alive(p) && p.id !== ex).map(p => p.id);
+    if (pd.stage === 'challengeAction') return others(pd.actor);
+    if (pd.stage === 'block') return ACT[pd.type].blockAny ? others(pd.actor) : (alive(P(s, pd.target)) ? [pd.target] : []);
+    if (pd.stage === 'challengeBlock') return others(pd.blocker);
+    return [];
+  }
+  const WINDOWS = ['challengeAction', 'block', 'challengeBlock'];
+  function validResp(s, r) {
+    const pd = s.pending;
+    if (pd.stage === 'block') return r.kind === 'block' && (ACT[pd.type].block || []).includes(r.card);
+    return r.kind === 'challenge';
+  }
+
+  function challenge(s, claimer, card, challenger, afterWin, afterLose) {
+    const p = P(s, claimer), pd = s.pending; pd.stage = 'wait';
+    log(s, `${nm(s, challenger)} desafia ${p.name}: “você não tem ${CH[card].n}!”`);
+    const i = p.cards.findIndex(c => !c.dead && c.c === card);
+    if (i >= 0) {
+      log(s, `${p.name} revela ${CH[card].n}, devolve ao baralho e compra outra carta. ${nm(s, challenger)} perde o desafio.`);
+      s.deck.push(card); shuffle(s.deck);
+      p.cards[i] = { c: s.deck.pop(), dead: false };
+      queueLose(s, challenger); pd.after = afterWin;
+    } else {
+      log(s, `${p.name} estava blefando: não tinha ${CH[card].n}.`);
+      queueLose(s, claimer); pd.after = afterLose;
+      if (afterLose === 'fail' && pd.type === 'assassinate' && claimer === pd.actor) {
+        P(s, pd.actor).coins += 3; log(s, `As 3 moedas do assassinato voltam para ${p.name}.`);
+      }
+    }
+  }
+
+  function advance(s, resp, force) {
+    const pd = s && s.pending;
+    if (!pd || s.phase !== 'play' || (s.lose && s.lose.length) || !WINDOWS.includes(pd.stage)) return null;
+    const el = eligible(s);
+    const rs = el.map(id => ({ id, r: resp && resp[id] })).filter(x => x.r && x.r.key === pd.key);
+    const acts = rs.filter(x => x.r.kind !== 'pass' && validResp(s, x.r)).sort((a, b) => (a.r.t || 0) - (b.r.t || 0));
+    if (acts.length) {
+      const { id, r } = acts[0];
+      if (pd.stage === 'challengeAction') challenge(s, pd.actor, ACT[pd.type].claim, id, 'blockOrResolve', 'fail');
+      else if (pd.stage === 'block') {
+        pd.blocker = id; pd.blockCard = r.card; pd.stage = 'challengeBlock'; setKey(pd);
+        log(s, `${nm(s, id)} bloqueia ${ACT[pd.type].label} alegando ${CH[r.card].n}.`);
+        return s;
+      } else challenge(s, pd.blocker, pd.blockCard, id, 'blocked', 'resolve');
+      pump(s); return s;
+    }
+    if (rs.length >= el.length || force) {
+      if (pd.stage === 'challengeAction') { log(s, 'Ninguém desafiou.'); pd.after = 'blockOrResolve'; }
+      else if (pd.stage === 'block') pd.after = 'resolve';
+      else pd.after = 'blocked';
+      pd.stage = 'wait'; pump(s); return s;
+    }
+    return null;
+  }
+
+  function pump(s) {
+    for (let guard = 0; guard < 40; guard++) {
+      while (s.lose.length) {
+        const p = P(s, s.lose[0].id);
+        if (!alive(p)) { s.lose.shift(); continue; }
+        const l = live(p);
+        if (l.length === 1) { loseCard(s, p, l[0]); s.lose.shift(); continue; }
+        break;
+      }
+      if (checkWin(s)) return;
+      if (s.lose.length) return;
+      const pd = s.pending; if (!pd || !pd.after) return;
+      let a = pd.after; pd.after = null;
+      const A = ACT[pd.type], act = P(s, pd.actor), tg = pd.target ? P(s, pd.target) : null;
+      if (a === 'end') { endTurn(s); return; }
+      if (a === 'fail') { log(s, `${A.label} de ${act.name} falhou.`); endTurn(s); return; }
+      if (a === 'blocked') { log(s, `${A.label} de ${act.name} foi bloqueado.`); endTurn(s); return; }
+      if (a === 'blockOrResolve') {
+        if (A.target && !alive(tg)) { endTurn(s); return; }
+        if (A.block && alive(act)) { pd.stage = 'block'; setKey(pd); return; }
+        a = 'resolve';
+      }
+      // resolve
+      if (!alive(act)) { endTurn(s); return; }
+      if (pd.type === 'foreign') { act.coins += 2; log(s, `${act.name} recebe 2 moedas de Ajuda Externa.`); endTurn(s); return; }
+      if (pd.type === 'tax') { act.coins += 3; log(s, `${act.name} recolhe 3 moedas de imposto.`); endTurn(s); return; }
+      if (pd.type === 'steal') {
+        if (!alive(tg)) { endTurn(s); return; }
+        const k = Math.min(2, tg.coins); tg.coins -= k; act.coins += k;
+        log(s, `${act.name} extorque ${k} moeda${k === 1 ? '' : 's'} de ${tg.name}.`); endTurn(s); return;
+      }
+      if (pd.type === 'assassinate') {
+        if (!alive(tg)) { endTurn(s); return; }
+        log(s, `O assassinato contra ${tg.name} acontece.`);
+        queueLose(s, tg.id); pd.stage = 'wait'; pd.after = 'end'; continue;
+      }
+      if (pd.type === 'exchange') {
+        pd.drawn = [s.deck.pop(), s.deck.pop()].filter(Boolean);
+        pd.stage = 'exchange'; setKey(pd);
+        log(s, `${act.name} compra ${pd.drawn.length} cartas do baralho da corte.`);
+        return;
+      }
+      endTurn(s); return;
+    }
+  }
+
+  function chooseLose(s, id, i) {
+    if (!s || s.phase !== 'play' || !s.lose.length || s.lose[0].id !== id) return null;
+    const p = P(s, id); if (!p || !p.cards[i] || p.cards[i].dead) return null;
+    loseCard(s, p, i); s.lose.shift(); pump(s); return s;
+  }
+  function exchangePool(s) {
+    const pd = s.pending, p = P(s, pd.actor);
+    return live(p).map(i => p.cards[i].c).concat(pd.drawn || []);
+  }
+  function chooseExchange(s, id, keep) {
+    const pd = s && s.pending;
+    if (!pd || pd.stage !== 'exchange' || pd.actor !== id) return null;
+    const p = P(s, id), slots = live(p), pool = exchangePool(s);
+    if (!Array.isArray(keep) || keep.length !== slots.length || new Set(keep).size !== keep.length || keep.some(k => pool[k] == null)) return null;
+    slots.forEach((slot, j) => { p.cards[slot] = { c: pool[keep[j]], dead: false }; });
+    pool.forEach((c, k) => { if (!keep.includes(k)) s.deck.push(c); });
+    shuffle(s.deck);
+    log(s, `${p.name} devolve ${pool.length - keep.length} cartas ao baralho.`);
+    pd.drawn = null; pd.stage = 'wait'; pd.after = 'end'; pump(s); return s;
+  }
+  function force(s, resp) {
+    if (!s || s.phase !== 'play') return null;
+    if (s.lose && s.lose.length) {
+      const p = P(s, s.lose[0].id), l = live(p);
+      log(s, `Mesa forçou a escolha de ${p.name}.`);
+      return chooseLose(s, p.id, l[rnd(l.length)]);
+    }
+    const pd = s.pending; if (!pd) return null;
+    if (pd.stage === 'exchange') {
+      log(s, `Mesa forçou a troca de ${nm(s, pd.actor)} (mantém as cartas atuais).`);
+      return chooseExchange(s, pd.actor, live(P(s, pd.actor)).map((_, j) => j));
+    }
+    if (WINDOWS.includes(pd.stage)) { log(s, 'Mesa considerou que os ausentes passaram.'); return advance(s, resp, true); }
+    return null;
+  }
+
+  /* ---------- Eventos ---------- */
+  function dispatch(s, ev) {
+    switch (ev.k) {
+      case 'join': return join(s, ev.p, ev.name);
+      case 'leave': return leave(s, ev.target || ev.p);
+      case 'start': return start(s);
+      case 'pick': return pick2p(s, ev.p, ev.i);
+      case 'declare': return declare(s, ev.p, ev.a, ev.target);
+      case 'resp': {
+        const pd = s.pending;
+        if (!pd || !WINDOWS.includes(pd.stage) || ev.key !== pd.key || !eligible(s).includes(ev.p)) return null;
+        const prev = s.resp[ev.p]; if (prev && prev.key === pd.key) return null;
+        if (!['pass', 'challenge', 'block'].includes(ev.kind)) return null;
+        s.resp[ev.p] = { key: ev.key, kind: ev.kind, card: ev.card || null, t: s.n || 0 };
+        return s;
+      }
+      case 'lose': return chooseLose(s, ev.p, ev.i);
+      case 'exch': return chooseExchange(s, ev.p, ev.keep);
+      case 'force': return force(s, s.resp);
+      case 'lobby': return s.phase === 'over' ? toLobby(s) : null;
+      case 'again': { if (s.phase !== 'over') return null; const t = toLobby(s); return start(t); }
+      case 'abort': { if (s.phase === 'lobby') return null; log(s, 'Partida encerrada.'); return toLobby(s); }
+    }
+    return null;
+  }
+  function applyEvent(state, ev) {
+    if (!ev || typeof ev.id !== 'string' || typeof ev.p !== 'string') return null;
+    const s = state ? JSON.parse(JSON.stringify(state)) : blank();
+    s.seen = s.seen || []; s.resp = s.resp || {}; s.waiting = s.waiting || [];
+    if (s.seen.includes(ev.id)) return null;
+    const t = +ev.t || 0;
+    const [out, seed] = withCtx(s.seed || hashStr(ev.id), t, () => dispatch(s, ev));
+    if (!out) return null;
+    out.seed = seed; out.n = (out.n || 0) + 1;
+    out.seen.push(ev.id); if (out.seen.length > 150) out.seen.splice(0, out.seen.length - 150);
+    let cur = out;
+    for (let k = 0; k < 3; k++) {
+      const c = JSON.parse(JSON.stringify(cur));
+      const [r, sd] = withCtx(cur.seed, t, () => advance(c, c.resp));
+      if (!r) break; r.seed = sd; cur = r;
+    }
+    return cur;
+  }
+
+  return { applyEvent, dispatch, TYPES, CH, ACT, P, alive, live, nm, blank, join, leave, toLobby, start, pick2p, declare, eligible, advance, chooseLose, chooseExchange, exchangePool, force, deckPer, WINDOWS, shuffle, rnd };
+})();
+
+</script>
+<script>
+(function(){
+const ICON={
+  duque:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 18h18l-1.6-9.5-4.6 4.3L12 5.5 9.2 12.8 4.6 8.5z"/><rect x="3" y="19.2" width="18" height="2" rx="1"/></svg>',
+  assassino:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5l2.2 11h-4.4z"/><rect x="7" y="12.5" width="10" height="2.2" rx="1.1"/><path d="M10.9 14.7h2.2v5.3l-1.1 2.5-1.1-2.5z"/></svg>',
+  capitao:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="4.6" r="2.1"/><path d="M12 6.7V21M7.5 10.5h9M4 13.5a8 7.5 0 0 0 16 0"/></svg>',
+  embaixador:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 3.5h10.5a2 2 0 0 1 2 2V18a2.5 2.5 0 0 0 2.5 2.5H8.5A2.5 2.5 0 0 1 6 18z"/><path d="M9.5 8h6M9.5 11h6M9.5 14h4"/></svg>',
+  condessa:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2.5 8.5c3.5-2.5 6.5-2.5 9.5 0 3-2.5 6-2.5 9.5 0-.8 5.6-5 7.8-9.5 4.8-4.5 3-8.7.8-9.5-4.8zm4.2 2.2a1.8 1.2 0 1 0 3.6 0 1.8 1.2 0 1 0-3.6 0zm7 0a1.8 1.2 0 1 0 3.6 0 1.8 1.2 0 1 0-3.6 0z"/><path d="M11.2 14.2h1.6V22h-1.6z"/></svg>'
+};
+const CH=E.CH, ACT=E.ACT;
+const $=s=>document.querySelector(s);
+const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+let DEVICE=ls('coup_id'); if(!DEVICE){DEVICE='j'+Date.now().toString(36)+E.rnd(1e9).toString(36);ls('coup_id',DEVICE)}
+
+let store=null, mode='connecting', S=null, R={}, connNote='', readOnly=false;
+const ui={sel:null,exSel:[],hide:false,confirm:null,seat:null,busy:false,err:''};
+const me=()=>mode==='local'?ui.seat:DEVICE;
+
+/* ---------- Armazenamentos (todos recebem eventos e aplicam o mesmo motor) ---------- */
+const BROKER='wss://broker.emqx.io:8084/mqtt';
+function newEv(k,x){ return Object.assign({id:DEVICE.slice(-6)+Date.now().toString(36)+E.rnd(1e9).toString(36),p:me(),k,t:Date.now()},x||{}); }
+function memoryStore(){
+  let st=null; const fs=[];
+  return { onState(f){fs.push(f);f(st)}, async send(ev){const n=E.applyEvent(st,ev); if(n){st=n; fs.forEach(f=>f(st))} return !!n} };
+}
+function lanStore(){
+  let ver=0; const fs=[];
+  (async function loop(){for(;;){try{const r=await fetch('/api/poll?since='+ver);if(r.ok){const j=await r.json();setConn('live','Wi‑Fi local');if(j.ver!==ver){ver=j.ver;fs.forEach(f=>f(j.state))}}else{await sleep(1000)}}catch(e){setConn('warn','Sem conexão com o servidor');await sleep(1500)}}})();
+  const post=(u,b)=>fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});
+  return { onState(f){fs.push(f)},
+    async send(ev){for(let a=0;a<25;a++){const j=await (await fetch('/api/snap')).json();const ns=E.applyEvent(j.state,ev);if(!ns)return false;const r=await post('/api/state',{expect:j.ver,state:ns});if(r.ok)return true;await sleep(40+E.rnd(120))}throw {code:'busy'}} };
+}
+function dbStore(db){
+  const stateRef=db.doc('coup/state'), lockRef=db.doc('coup/lock');
+  return {
+    onState(f){let t=setTimeout(()=>setConn('warn','A mesa ainda não respondeu…'),10000);
+      stateRef.onSnapshot(s=>{if(!s.metadata.fromCache){clearTimeout(t);setConn('live','Mesa online')}f(s.exists?s.data():null)},e=>{clearTimeout(t);setConn('warn',e&&e.code==='revoked'?'Acesso encerrado':'Conexão perdida — recarregue a página')})},
+    async send(ev){
+      for(let a=0;a<40;a++){
+        const r=await lockRef.acquire({holder:DEVICE,ttlMs:3000});
+        if(!r.acquired){const w=r.expiresAt?Math.max(80,Math.min(1500,Date.parse(r.expiresAt)-Date.now())):300;await sleep(w+E.rnd(160));continue}
+        try{ const ss=await stateRef.get(); const ns=E.applyEvent(ss.exists?ss.data():null,ev); if(!ns) return false; await stateRef.set(JSON.parse(JSON.stringify(ns))); return true; }
+        finally{ lockRef.acquire({holder:DEVICE,ttlMs:1000}).catch(()=>{}) }
+      }
+      throw {code:'busy'};
+    }
+  };
+}
+/* Sala pública: cada aparelho aplica os eventos na ordem em que o servidor de mensagens os entrega.
+   O estado mais recente fica retido no servidor, para quem entra ou reconecta. */
+function mqttStore(room){
+  const base='coupdacasa/v1/'+room, T_EV=base+'/ev', T_SNAP=base+'/snap';
+  let st=null, synced=false, buf=[], syncTimer=null; const fs=[];
+  const emit=()=>fs.forEach(f=>f(st));
+  const client=mqtt.connect(BROKER,{clientId:'coup_'+DEVICE.slice(-10)+'_'+E.rnd(1e6),clean:true,keepalive:30,reconnectPeriod:2000,connectTimeout:10000});
+  function markSynced(){ if(synced) return; synced=true; clearTimeout(syncTimer); const b=buf; buf=[]; b.forEach(applyOne); emit(); }
+  function publishSnap(){ if(st) client.publish(T_SNAP,JSON.stringify({n:st.n||0,state:st}),{qos:1,retain:true}); }
+  function applyOne(ev){ const ns=E.applyEvent(st,ev); if(ns){ st=ns; return true } return false; }
+  client.on('connect',()=>{ setConn('live','Sala online'); synced=false; buf=[];
+    client.subscribe([T_SNAP,T_EV],{qos:1}); clearTimeout(syncTimer); syncTimer=setTimeout(markSynced,3000); });
+  client.on('reconnect',()=>setConn('warn','Reconectando…'));
+  client.on('offline',()=>setConn('warn','Sem internet'));
+  client.on('error',()=>setConn('warn','Erro de conexão'));
+  client.on('message',(topic,payload)=>{
+    let m; try{ m=JSON.parse(payload.toString()) }catch(e){ return }
+    if(topic===T_SNAP){ if(m&&m.state&&(!st||(m.n||0)>(st.n||0))){ st=m.state; emit(); } markSynced(); return; }
+    if(topic===T_EV){ if(!synced){ buf.push(m); return; } if(applyOne(m)){ emit(); if(m.p===DEVICE||m.p===me()) publishSnap(); else setTimeout(publishSnap,300+E.rnd(500)); } }
+  });
+  return { onState(f){fs.push(f);if(synced)f(st)},
+    async send(ev){ if(!client.connected) throw {code:'offline'}; await new Promise((ok,bad)=>client.publish(T_EV,JSON.stringify(ev),{qos:1},e=>e?bad(e):ok())); return true; } };
+}
+function setConn(kind,text){ if(mode!=='local'){ connNote=`<span class="chip ${kind}">${esc(text)}</span>`; } paintConn(); }
+function paintConn(){
+  const el=$('#conn'); if(!el) return;
+  if(mode==='local') el.innerHTML='<span class="chip">Modo local · um aparelho</span>';
+  else el.innerHTML=connNote||'<span class="chip">Conectando…</span>';
+}
+function roomFromHash(){ const m=/^#sala-([a-z0-9]{4,12})$/.exec(location.hash||''); return m?m[1]:null; }
+async function boot(){
+  if(window.COUP_LAN){ attach(lanStore(),'lan'); return; }
+  if(window.COUP_WEB){
+    const room=roomFromHash();
+    if(!room){ mode='noroom'; render(); return; }
+    if(typeof mqtt==='undefined'){ connNote='<span class="chip warn">Não carregou o módulo de conexão</span>'; mode='noroom'; render(); return; }
+    ROOM=room; attach(mqttStore(room),'mqtt'); return;
+  }
+  let db=null;
+  for(let i=0;i<20&&!(window.claude&&window.claude.use);i++) await sleep(100);
+  try{ if(window.claude&&window.claude.use) db=await window.claude.use('db'); }catch(e){ db=null }
+  if(mode==='local') return;
+  if(db){ attach(dbStore(db),'db'); }
+  else { connNote='<span class="chip warn">Mesa compartilhada indisponível</span>'; paintConn(); render(); }
+}
+let ROOM=null;
+window.addEventListener('hashchange',()=>{ if(window.COUP_WEB&&roomFromHash()!==ROOM) location.reload(); });
+function attach(st,m){ store=st; mode=m; store.onState(s=>{S=s; R=(s&&s.resp)||{}; render()}); paintConn(); render(); }
+function startLocal(){ mode='local'; attach(memoryStore(),'local'); }
+
+/* ---------- Ações ---------- */
+let busyT=null;
+async function send(k,x){
+  if(!store) return;
+  ui.err=''; ui.busy=true; render(); clearTimeout(busyT); busyT=setTimeout(()=>{ui.busy=false;render()},1500);
+  try{ await store.send(newEv(k,x)); }
+  catch(e){ ui.err = e&&e.code==='invalid_argument' ? 'Seu acesso a esta página é só de leitura. Peça ao dono para te convidar como Editor.' : e&&e.code==='offline' ? 'Sem conexão com a sala. Verifique a internet e tente de novo.' : 'Não consegui registrar a jogada. Tente de novo.'; if(e&&e.code==='invalid_argument') readOnly=true; }
+  ui.busy=false; clearTimeout(busyT); render();
+}
+
+/* ---------- Desenho ---------- */
+function cardHTML(t,o){o=o||{};
+  if(o.back) return `<div class="card ${o.size||'mid'} back"></div>`;
+  const c=CH[t]; const size=o.size||'mid';
+  const inner = size==='tiny' ? ICON[t] : `${ICON[t]}<div class="cn">${c.n}</div>${size==='big'?`<div class="ca">${esc(c.a||c.b)}</div>`:''}`;
+  return `<div class="card ${size} c-${t}${o.dead?' dead':''}${o.pick?' pick':''}${o.sel?' sel':''}${o.hide?' hidden-face':''}" ${o.attr||''} title="${c.n}">${inner}</div>`;
+}
+const claimTag=t=>`<span class="claim c-${t}" style="--c:var(--${t})">${CH[t].n}</span>`;
+const coins=n=>`<span class="coins"><span class="coin"></span>${n}</span>`;
+
+function paintRef(){
+  $('#refcards').innerHTML=E.TYPES.map(t=>`<div class="item">${cardHTML(t,{size:'tiny'})}<p><b>${CH[t].n}</b><br>${esc(CH[t].a||'Sem ação própria')}${CH[t].b?'<br><span class="muted">'+esc(CH[t].b)+'</span>':''}</p></div>`).join('')+
+  `<div class="item"><div class="card tiny back"></div><p><b>Ações gerais</b><br>Renda +1 · Ajuda Externa +2 (Duque bloqueia) · Golpe por 7 (ninguém bloqueia)</p></div>`;
+}
+
+function render(){
+  const app=$('#app'); if(!app) return;
+  const myId=me();
+  const joined = S && (S.players.some(p=>p.id===myId) || (S.waiting||[]).some(p=>p.id===myId));
+  $('#joinbox').hidden = mode==='local' || !store || readOnly || !!joined;
+  if(mode==='noroom'){ app.innerHTML=noRoomHTML(); paintConn(); return; }
+  if(!store){ if(connNote) app.innerHTML=offlineHTML(); paintConn(); return; }
+  if(!S || S.phase==='lobby') app.innerHTML=lobbyHTML();
+  else if(S.phase==='setup2p') app.innerHTML=setupHTML()+logHTML();
+  else app.innerHTML=gameHTML()+logHTML();
+  paintConn();
+}
+function offlineHTML(){
+  return `<section class="court"><div class="label">Sem mesa compartilhada</div>
+  <div class="headline">Não consegui abrir a mesa online nesta tela.</div>
+  <p class="muted" style="margin:0">Para jogar em vários celulares, abra o link do jogo no app ou site do Claude, com sua conta. Ou jogue passando este aparelho de mão em mão.</p>
+  <div class="row"><button class="btn gold" data-do="localmode">Jogar neste aparelho</button></div></section>`;
+}
+function noRoomHTML(){
+  return `<section class="court"><div class="label">Nova mesa</div>
+  <div class="headline">Crie uma sala e mande o link no grupo.</div>
+  <p class="muted" style="margin:0">Cada amigo abre o link no próprio celular, digita o apelido e senta à mesa. Não precisa de conta nem de instalar nada.</p>
+  <div class="row"><button class="btn gold" data-do="newroom">Criar sala</button><button class="btn ghost" data-do="localmode">Jogar em um aparelho só</button></div></section>`;
+}
+function shareHTML(){
+  if(mode!=='mqtt') return '';
+  const link=location.href; const wa='https://wa.me/?text='+encodeURIComponent('Bora jogar Coup! Entra na mesa: '+link);
+  return `<section class="panel"><div class="label">Convide pelo WhatsApp · sala ${esc(ROOM)}</div>
+    <input id="roomlink" class="input mono" readonly value="${esc(link)}" aria-label="Link da sala" style="font-size:13px">
+    <div class="row"><a class="btn gold" href="${esc(wa)}" target="_blank" rel="noopener" style="text-decoration:none">Enviar no WhatsApp</a><button class="btn" data-do="copylink">${ui.copied?'Link copiado':'Copiar link'}</button></div></section>`;
+}
+function errHTML(){ return ui.err?`<div class="banner warn">${esc(ui.err)}</div>`:''; }
+
+function lobbyHTML(){
+  const ps=S?S.players:[]; const n=ps.length; const myId=me();
+  const cfg = n<2?'Precisa de pelo menos 2 jogadores.' : n===2?'2 jogadores: variante oficial — cada um escolhe 1 de 5 personagens; a outra carta vem de um terceiro conjunto.' : `${n} jogadores: baralho de ${E.deckPer(n)*5} cartas (${E.deckPer(n)} de cada personagem).`;
+  const local = mode==='local' ? `<form class="row" data-form="addlocal"><input class="input" id="localname" style="flex:1 1 180px" maxlength="18" placeholder="Nome do jogador"><button class="btn" type="submit">Adicionar</button></form>` : '';
+  const amIn=ps.some(p=>p.id===myId);
+  return `${errHTML()}${shareHTML()}<section class="court">
+    <div class="label">Saguão · ${n}/10 jogadores</div>
+    <div class="headline">${n?'Quem está na mesa':'A mesa está vazia'}</div>
+    <div class="lobbylist">${ps.map((p,i)=>`<div class="p"><span><b>${esc(p.name)}</b>${p.id===myId&&mode!=='local'?' <span class="muted">(você)</span>':''}${S.lastWinner===p.id?' <span class="claim" style="--c:var(--gold);color:var(--gold-ink)">venceu a última</span>':''}</span>
+      ${(p.id===myId&&mode!=='local')||mode==='local'?`<button class="btn small ghost" data-do="leave" data-id="${esc(p.id)}">${p.id===myId&&mode!=='local'?'Sair':'Remover'}</button>`:''}</div>`).join('')||'<p class="muted" style="margin:0">Digite seu apelido acima para sentar. Cada amigo faz o mesmo no próprio celular.</p>'}</div>
+    ${local}
+    <p class="muted" style="margin:0;font-size:14px">${cfg}</p>
+    <div class="row"><button class="btn gold" data-do="start" ${n<2||n>10||(!amIn&&mode!=='local')||ui.busy?'disabled':''}>Começar partida</button></div>
+  </section>`;
+}
+
+function rivalsHTML(){
+  const pd=S.pending; const el=pd&&E.WINDOWS.includes(pd.stage)?E.eligible(S):[];
+  return `<section class="rivals">${S.players.map((p,i)=>{
+    const out=!E.alive(p); const turn=S.phase==='play'&&i===S.turn;
+    let st='';
+    if(el.includes(p.id)){const r=R[p.id]; st=r&&r.key===pd.key?'<span class="status-dot done">respondeu</span>':'<span class="status-dot">pensando…</span>'}
+    else if(S.lose&&S.lose[0]&&S.lose[0].id===p.id) st='<span class="status-dot">escolhendo carta</span>';
+    else if(pd&&pd.stage==='exchange'&&pd.actor===p.id) st='<span class="status-dot">trocando</span>';
+    else if(out) st='<span class="status-dot">fora</span>';
+    else if(turn) st='<span class="status-dot" style="color:var(--gold)">vez</span>';
+    const mine=p.id===me();
+    return `<div class="seat${turn?' turn':''}${out?' out':''}"><div class="who"><span class="name">${esc(p.name)}${mine?' <span class="muted">(você)</span>':''}</span>${coins(p.coins)}</div>
+      <div class="who"><div class="mini">${p.cards.map(c=>c.dead||S.phase==='over'?cardHTML(c.c,{size:'tiny',dead:c.dead}):cardHTML(null,{size:'tiny',back:true})).join('')}</div>${st}</div></div>`}).join('')}</section>`;
+}
+
+function describe(){
+  const pd=S.pending, nm=id=>esc(E.nm(S,id));
+  if(S.phase==='over'){const w=E.P(S,S.winner);return `<div class="winner">${w?esc(w.name)+' venceu':'Fim de partida'}</div>`}
+  if(S.lose.length){const id=S.lose[0].id;return `<div class="headline"><b>${nm(id)}</b> precisa escolher qual influência perder.</div>`}
+  if(!pd){const p=S.players[S.turn];return `<div class="headline">Vez de <b>${esc(p.name)}</b>.${p.coins>=10?' Com 10 moedas, o Golpe é obrigatório.':''}</div>`}
+  const A=ACT[pd.type]; const tgt=pd.target?` contra <b>${nm(pd.target)}</b>`:'';
+  if(pd.stage==='challengeAction') return `<div class="headline"><b>${nm(pd.actor)}</b> declara ${A.label}${tgt} ${claimTag(A.claim)}</div><p class="muted" style="margin:0">Alguém desafia? A jogada segue quando todos responderem.</p>`;
+  if(pd.stage==='block'){
+    if(A.blockAny) return `<div class="headline"><b>${nm(pd.actor)}</b> pede Ajuda Externa.</div><p class="muted" style="margin:0">Qualquer jogador pode bloquear alegando ${claimTag('duque')}</p>`;
+    return `<div class="headline"><b>${nm(pd.actor)}</b> faz ${A.label}${tgt}.</div><p class="muted" style="margin:0">${nm(pd.target)} pode bloquear com ${A.block.map(claimTag).join(' ou ')}</p>`;
+  }
+  if(pd.stage==='challengeBlock') return `<div class="headline"><b>${nm(pd.blocker)}</b> bloqueia ${A.label} ${claimTag(pd.blockCard)}</div><p class="muted" style="margin:0">Alguém desafia o bloqueio?</p>`;
+  if(pd.stage==='exchange') return `<div class="headline"><b>${nm(pd.actor)}</b> está escolhendo cartas com o Embaixador.</div>`;
+  return `<div class="headline">Resolvendo ${A.label}…</div>`;
+}
+
+function decisionHTML(){
+  const myId=me(); const mp=E.P(S,myId); if(!mp) return `<p class="muted" style="margin:0">Você está assistindo. Entra na próxima partida.</p>`;
+  if(S.phase==='over') return `<div class="row"><button class="btn gold" data-do="again">Jogar de novo</button><button class="btn ghost" data-do="lobby">Voltar ao saguão</button></div>`;
+  const pd=S.pending, dis=ui.busy?'disabled':'';
+  // perder influência
+  if(S.lose.length&&S.lose[0].id===myId){
+    return `<div class="label">Toque na carta que você vai revelar</div><div class="hand">${mp.cards.map((c,i)=>c.dead?'':cardHTML(c.c,{size:'big',pick:true,attr:`data-do="lose" data-i="${i}" role="button" tabindex="0"`})).join('')}</div>`;
+  }
+  if(S.lose.length) return waitHTML();
+  // trocar
+  if(pd&&pd.stage==='exchange'){
+    if(pd.actor!==myId) return waitHTML();
+    const pool=E.exchangePool(S), need=E.live(mp).length;
+    return `<div class="label">Escolha ${need} carta${need>1?'s':''} para ficar (${ui.exSel.length}/${need})</div>
+      <div class="hand">${pool.map((c,k)=>cardHTML(c,{size:'mid',pick:true,sel:ui.exSel.includes(k),attr:`data-do="exsel" data-k="${k}" role="button" tabindex="0"`})).join('')}</div>
+      <div class="row"><button class="btn gold" data-do="exok" ${ui.exSel.length!==need||ui.busy?'disabled':''}>Confirmar troca</button></div>`;
+  }
+  // janela de reação
+  if(pd&&E.WINDOWS.includes(pd.stage)){
+    const el=E.eligible(S);
+    if(!el.includes(myId)) return waitHTML();
+    const r=R[myId]; if(r&&r.key===pd.key) return `<p class="muted" style="margin:0">Resposta enviada. Aguardando os outros…</p>`+forceHTML();
+    const A=ACT[pd.type];
+    if(pd.stage==='challengeAction') return `<div class="row"><button class="btn danger" data-do="resp" data-k="challenge" ${dis}>Desafiar ${E.nm(S,pd.actor)}</button><button class="btn" data-do="resp" data-k="pass" ${dis}>Deixar passar</button></div>`;
+    if(pd.stage==='block') return `<div class="row">${A.block.map(b=>`<button class="btn danger" data-do="resp" data-k="block" data-card="${b}" ${dis}>Bloquear com ${CH[b].n}</button>`).join('')}<button class="btn" data-do="resp" data-k="pass" ${dis}>${A.blockAny?'Não bloquear':'Aceitar'}</button></div>`;
+    return `<div class="row"><button class="btn danger" data-do="resp" data-k="challenge" ${dis}>Desafiar bloqueio</button><button class="btn" data-do="resp" data-k="pass" ${dis}>Aceitar bloqueio</button></div>`;
+  }
+  // minha vez
+  if(!pd&&S.players[S.turn].id===myId){
+    if(ui.sel){
+      const A=ACT[ui.sel]; const ts=S.players.filter(p=>E.alive(p)&&p.id!==myId);
+      return `<div class="label">${A.label}: escolha o alvo</div><div class="row">${ts.map(t=>`<button class="btn" data-do="target" data-id="${esc(t.id)}" ${dis}>${esc(t.name)} · ${t.coins} moeda${t.coins===1?'':'s'}</button>`).join('')}<button class="btn ghost" data-do="cancel">Cancelar</button></div>`;
+    }
+    const must=mp.coins>=10;
+    return `<div class="label">Sua ação${must?' — Golpe obrigatório':''}</div><div class="actions">${Object.keys(ACT).map(a=>{const A=ACT[a];const off=(must&&a!=='coup')||(A.cost&&mp.coins<A.cost)||ui.busy;
+      const tag=A.claim?`<span class="k" style="--c:var(--${A.claim})">${CH[A.claim].n}</span>`:`<span class="k free">${a==='foreign'?'Duque bloqueia':'sem bloqueio'}</span>`;
+      return `<button class="act" data-do="declare" data-a="${a}" ${off?'disabled':''}><span class="t">${A.label}</span><span class="f">${A.fx}</span>${tag}</button>`}).join('')}</div>`;
+  }
+  return waitHTML();
+}
+function waitHTML(){ return `<p class="muted" style="margin:0">Aguardando…</p>`+forceHTML(); }
+function forceHTML(){
+  const pd=S.pending; const since=pd&&pd.since||0;
+  if(S.phase!=='play'||Date.now()-since<25000) return '';
+  if(ui.confirm==='force') return `<div class="row"><span class="muted" style="font-size:13px">Quem não respondeu será considerado como “passou”.</span><button class="btn small danger" data-do="force">Confirmar</button><button class="btn small ghost" data-do="cancelconfirm">Cancelar</button></div>`;
+  return `<div class="row"><button class="btn small ghost" data-do="askforce">Alguém saiu? Destravar a mesa</button></div>`;
+}
+
+function handHTML(){
+  const mp=E.P(S,me()); if(!mp) return '';
+  return `<section class="panel"><div class="mybar"><div><div class="label">Sua mão${mode==='local'?' · '+esc(mp.name):''}</div></div>
+    <div class="row"><div class="bigcoins"><span class="coin"></span>${mp.coins}</div><button class="btn small ghost" data-do="hide">${ui.hide?'Mostrar cartas':'Esconder cartas'}</button></div></div>
+    <div class="hand">${mp.cards.map(c=>cardHTML(c.c,{size:'big',dead:c.dead,hide:ui.hide&&!c.dead})).join('')}</div></section>`;
+}
+function seatPicker(){
+  if(mode!=='local') return '';
+  return `<div class="row"><label class="label" for="seatsel">Jogando como</label><select id="seatsel" class="input" style="width:auto" data-change="seat">${S.players.map(p=>`<option value="${esc(p.id)}" ${p.id===ui.seat?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`;
+}
+function gameHTML(){
+  if(mode==='local'&&!E.P(S,ui.seat)) ui.seat=S.players[0].id;
+  const over=S.phase==='over';
+  return `${errHTML()}${seatPicker()}${rivalsHTML()}
+  <section class="court"><div class="label">Partida ${S.game||1} · baralho da corte: ${S.deck.length} cartas</div>${describe()}${decisionHTML()}</section>
+  ${over?revealHTML():handHTML()}
+  <div class="row"><button class="btn small ghost" data-do="${ui.confirm==='abort'?'abort':'askabort'}">${ui.confirm==='abort'?'Confirmar: encerrar e voltar ao saguão':'Encerrar partida'}</button></div>`;
+}
+function revealHTML(){
+  return `<section class="panel"><div class="label">Cartas de todos</div><div class="reveal">${S.players.map(p=>`<div class="seat"><span class="name">${esc(p.name)}</span><div class="hand" style="gap:6px">${p.cards.map(c=>cardHTML(c.c,{size:'mid',dead:c.dead})).join('')}</div></div>`).join('')}</div></section>`;
+}
+function setupHTML(){
+  const myId=me(); const set=S.setup.sets[myId]; const picked=S.setup.picks[myId];
+  let body;
+  if(!set) body='<p class="muted" style="margin:0">Os dois jogadores estão escolhendo suas cartas.</p>';
+  else if(picked) body=`<p class="muted" style="margin:0">Você escolheu ${CH[picked].n}. Aguardando o outro jogador…</p>`;
+  else body=`<div class="label">Escolha 1 personagem para a sua mão</div><div class="hand">${set.map((c,i)=>cardHTML(c,{size:'mid',pick:true,attr:`data-do="pick" data-i="${i}" role="button" tabindex="0"`})).join('')}</div><p class="muted" style="margin:0;font-size:13px">As outras 4 saem do jogo. Sua segunda carta vem sorteada do terceiro conjunto.</p>`;
+  return `${errHTML()}${seatPicker()}<section class="court"><div class="label">Variante para 2 jogadores</div><div class="headline">Monte sua mão</div>${body}</section>`;
+}
+function logHTML(){
+  const L=(S.log||[]).slice().reverse();
+  return `<section class="panel"><div class="label">Registro da corte</div><div class="log">${L.map(x=>`<div>${esc(x.m)}</div>`).join('')}</div></section>`;
+}
+
+/* ---------- Eventos ---------- */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-do]'); if(!b||b.disabled) return;
+  const d=b.dataset.do, myId=me();
+  if(!['askforce','askabort','force','abort'].includes(d)) ui.confirm=null;
+  switch(d){
+    case 'localmode': startLocal(); break;
+    case 'newroom': { const c=Array.from({length:6},()=>'abcdefghjkmnpqrstuvwxyz23456789'[E.rnd(31)]).join(''); location.hash='sala-'+c; break; }
+    case 'copylink': { const t=location.href; const done=()=>{ui.copied=true;render();setTimeout(()=>{ui.copied=false;render()},2000)};
+      if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done,()=>{const i=$('#roomlink');if(i){i.select()}}); else {const i=$('#roomlink');if(i)i.select()} break; }
+    case 'leave': send('leave',{target:b.dataset.id}); break;
+    case 'start': send('start'); break;
+    case 'declare': { const a=b.dataset.a; if(ACT[a].target){ui.sel=a;render()} else send('declare',{a}); break; }
+    case 'target': { const a=ui.sel; ui.sel=null; send('declare',{a,target:b.dataset.id}); break; }
+    case 'cancel': ui.sel=null; render(); break;
+    case 'resp': if(S&&S.pending) send('resp',{key:S.pending.key,kind:b.dataset.k,card:b.dataset.card||null}); break;
+    case 'lose': send('lose',{i:+b.dataset.i}); break;
+    case 'pick': send('pick',{i:+b.dataset.i}); break;
+    case 'exsel': { const k=+b.dataset.k; const need=E.live(E.P(S,myId)).length; if(ui.exSel.includes(k)) ui.exSel=ui.exSel.filter(x=>x!==k); else if(ui.exSel.length<need) ui.exSel.push(k); render(); break; }
+    case 'exok': { const keep=ui.exSel.slice(); ui.exSel=[]; send('exch',{keep}); break; }
+    case 'hide': ui.hide=!ui.hide; render(); break;
+    case 'again': send('again'); break;
+    case 'lobby': send('lobby'); break;
+    case 'askforce': ui.confirm='force'; render(); break;
+    case 'force': ui.confirm=null; send('force'); break;
+    case 'askabort': ui.confirm='abort'; render(); break;
+    case 'abort': ui.confirm=null; send('abort'); break;
+    case 'cancelconfirm': render(); break;
+  }
+});
+document.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role=button][data-do]')){e.preventDefault();e.target.click()} });
+document.addEventListener('change',e=>{ if(e.target.dataset.change==='seat'){ui.seat=e.target.value;ui.sel=null;ui.exSel=[];render()} });
+document.addEventListener('submit',e=>{
+  e.preventDefault();
+  if(e.target.id==='joinform'){ const name=$('#nameinput').value.trim(); if(!name){$('#nameinput').focus();return} ls('coup_name',name); send('join',{name}); }
+  if(e.target.dataset.form==='addlocal'){ const inp=$('#localname'); const name=inp.value.trim(); if(!name) return; const id='L'+Date.now().toString(36)+E.rnd(1e6);
+    const ev=newEv('join',{name}); ev.p=id; store.send(ev).then(()=>{ if(!ui.seat) ui.seat=id; render(); const i=$('#localname'); if(i) i.focus(); }); }
+});
+setInterval(()=>{ if(S&&S.phase==='play'&&S.pending&&!document.querySelector('input:focus')) render(); },5000);
+
+$('#nameinput').value=ls('coup_name')||'';
+paintRef(); paintConn(); boot();
+})();
+</script>
+</body></html>
