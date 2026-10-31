@@ -121,6 +121,11 @@ details.rules summary::-webkit-details-marker{display:none}
 .rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
 
 .lobbylist{display:flex;flex-direction:column;gap:6px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex:none}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+.dot.off{background:var(--muted);opacity:.6}
+.pname{min-width:0}
+.tag{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);border:1px solid color-mix(in srgb,var(--gold) 50%,transparent);border-radius:999px;padding:1px 7px;margin-left:4px}
 .lobbylist .p{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;background:var(--felt);border:1px solid var(--line);border-radius:10px}
 .banner{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--raise);font-size:14px}
 .banner.warn{border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
@@ -472,10 +477,27 @@ const E = (() => {
   }
 
   /* ---------- Eventos ---------- */
+  /* Anfitrião: quem criou a sala; se ele não estiver na mesa, o primeiro jogador sentado */
+  function hostOf(s) {
+    if (!s) return null;
+    if (s.host && (P(s, s.host) || (s.waiting || []).some(w => w.id === s.host))) return s.host;
+    return s.players[0] ? s.players[0].id : null;
+  }
+  const HOST_ONLY = ['start', 'again', 'lobby', 'abort'];
   function dispatch(s, ev) {
+    if (HOST_ONLY.includes(ev.k) && ev.p !== hostOf(s)) return null;
     switch (ev.k) {
-      case 'join': return join(s, ev.p, ev.name);
-      case 'leave': return leave(s, ev.target || ev.p);
+      case 'join': {
+        const claim = ev.host === true && !s.host;
+        const r = join(s, ev.p, ev.name);
+        if (claim && (r || P(s, ev.p))) { s.host = ev.p; return s; }
+        return r;
+      }
+      case 'leave': {
+        const target = ev.target || ev.p;
+        if (target !== ev.p && ev.p !== hostOf(s)) return null;
+        return leave(s, target);
+      }
       case 'start': return start(s);
       case 'pick': return pick2p(s, ev.p, ev.i);
       case 'declare': return declare(s, ev.p, ev.a, ev.target);
@@ -515,7 +537,7 @@ const E = (() => {
     return cur;
   }
 
-  return { applyEvent, dispatch, TYPES, CH, ACT, P, alive, live, nm, blank, join, leave, toLobby, start, pick2p, declare, eligible, advance, chooseLose, chooseExchange, exchangePool, force, deckPer, WINDOWS, shuffle, rnd };
+  return { applyEvent, dispatch, hostOf, TYPES, CH, ACT, P, alive, live, nm, blank, join, leave, toLobby, start, pick2p, declare, eligible, advance, chooseLose, chooseExchange, exchangePool, force, deckPer, WINDOWS, shuffle, rnd };
 })();
 
 </script>
@@ -572,23 +594,31 @@ function dbStore(db){
 /* Sala pública: cada aparelho aplica os eventos na ordem em que o servidor de mensagens os entrega.
    O estado mais recente fica retido no servidor, para quem entra ou reconecta. */
 function mqttStore(room){
-  const base='coupdacasa/v1/'+room, T_EV=base+'/ev', T_SNAP=base+'/snap';
+  const base='coupdacasa/v1/'+room, T_EV=base+'/ev', T_SNAP=base+'/snap', T_HB=base+'/hb';
   let st=null, synced=false, buf=[], syncTimer=null; const fs=[];
   const emit=()=>fs.forEach(f=>f(st));
-  const client=mqtt.connect(BROKER,{clientId:'coup_'+DEVICE.slice(-10)+'_'+E.rnd(1e6),clean:true,keepalive:30,reconnectPeriod:2000,connectTimeout:10000});
+  const client=mqtt.connect(BROKER,{clientId:'coup_'+DEVICE.slice(-10)+'_'+E.rnd(1e6),clean:true,keepalive:15,reconnectPeriod:2000,connectTimeout:10000,
+    will:{topic:T_HB,payload:JSON.stringify({p:DEVICE,off:true}),qos:0,retain:false}});
+  const beat=off=>{ if(client.connected) client.publish(T_HB,JSON.stringify({p:DEVICE,off:!!off}),{qos:0}); };
+  setInterval(()=>{ if(document.visibilityState!=='hidden') beat(false) },8000);
+  document.addEventListener('visibilitychange',()=>beat(document.visibilityState==='hidden'));
+  window.addEventListener('pagehide',()=>beat(true));
   function markSynced(){ if(synced) return; synced=true; clearTimeout(syncTimer); const b=buf; buf=[]; b.forEach(applyOne); emit(); }
   function publishSnap(){ if(st) client.publish(T_SNAP,JSON.stringify({n:st.n||0,state:st}),{qos:1,retain:true}); }
   function applyOne(ev){ const ns=E.applyEvent(st,ev); if(ns){ st=ns; return true } return false; }
   client.on('connect',()=>{ setConn('live','Sala online'); synced=false; buf=[];
-    client.subscribe([T_SNAP,T_EV],{qos:1}); clearTimeout(syncTimer); syncTimer=setTimeout(markSynced,3000); });
+    client.subscribe([T_SNAP,T_EV],{qos:1}); client.subscribe(T_HB,{qos:0}); beat(false); PRES.since=Date.now();
+    clearTimeout(syncTimer); syncTimer=setTimeout(markSynced,3000); });
   client.on('reconnect',()=>setConn('warn','Reconectando…'));
   client.on('offline',()=>setConn('warn','Sem internet'));
   client.on('error',()=>setConn('warn','Erro de conexão'));
   client.on('message',(topic,payload)=>{
     let m; try{ m=JSON.parse(payload.toString()) }catch(e){ return }
+    if(topic===T_HB){ if(m&&typeof m.p==='string'){ const was=isOnline(m.p); PRES.map[m.p]={last:Date.now(),off:!!m.off}; if(isOnline(m.p)!==was) render(); } return; }
     if(topic===T_SNAP){ if(m&&m.state&&(!st||(m.n||0)>(st.n||0))){ st=m.state; emit(); } markSynced(); return; }
     if(topic===T_EV){ if(!synced){ buf.push(m); return; } if(applyOne(m)){ emit(); if(m.p===DEVICE||m.p===me()) publishSnap(); else setTimeout(publishSnap,300+E.rnd(500)); } }
   });
+  STORE_CLIENT=client;
   return { onState(f){fs.push(f);if(synced)f(st)},
     async send(ev){ if(!client.connected) throw {code:'offline'}; await new Promise((ok,bad)=>client.publish(T_EV,JSON.stringify(ev),{qos:1},e=>e?bad(e):ok())); return true; } };
 }
@@ -598,6 +628,21 @@ function paintConn(){
   if(mode==='local') el.innerHTML='<span class="chip">Modo local · um aparelho</span>';
   else el.innerHTML=connNote||'<span class="chip">Conectando…</span>';
 }
+const PRES={map:{},since:0}; let STORE_CLIENT=null;
+/* true = online, false = offline, null = ainda sem informação (ou modo sem presença) */
+function isOnline(pid){
+  if(mode!=='mqtt') return null;
+  if(pid===DEVICE) return !!(STORE_CLIENT&&STORE_CLIENT.connected);
+  const p=PRES.map[pid];
+  if(!p) return Date.now()-PRES.since>12000 ? false : null;
+  return !p.off && Date.now()-p.last<22000;
+}
+function dot(pid){
+  const o=isOnline(pid); if(o===null) return '';
+  return `<span class="dot ${o?'on':'off'}" title="${o?'Online':'Offline'}" aria-label="${o?'Online':'Offline'}"></span>`;
+}
+const isHost=()=>mode==='local'||(S&&E.hostOf(S)===me());
+const hostName=()=>{const h=S&&E.hostOf(S); return h?E.nm(S,h):'o anfitrião'};
 function roomFromHash(){ const m=/^#sala-([a-z0-9]{4,12})$/.exec(location.hash||''); return m?m[1]:null; }
 async function boot(){
   if(window.COUP_LAN){ attach(lanStore(),'lan'); return; }
@@ -624,7 +669,10 @@ let busyT=null;
 async function send(k,x){
   if(!store) return;
   ui.err=''; ui.busy=true; render(); clearTimeout(busyT); busyT=setTimeout(()=>{ui.busy=false;render()},1500);
-  try{ await store.send(newEv(k,x)); }
+  const ev=newEv(k,x);
+  if(mode==='local'&&['start','again','lobby','abort','leave'].includes(k)&&S) ev.p=E.hostOf(S)||ev.p;
+  if(k==='join'&&mode==='mqtt'&&ls('coup_host_'+ROOM)==='1') ev.host=true;
+  try{ await store.send(ev); }
   catch(e){ ui.err = e&&e.code==='invalid_argument' ? 'Seu acesso a esta página é só de leitura. Peça ao dono para te convidar como Editor.' : e&&e.code==='offline' ? 'Sem conexão com a sala. Verifique a internet e tente de novo.' : 'Não consegui registrar a jogada. Tente de novo.'; if(e&&e.code==='invalid_argument') readOnly=true; }
   ui.busy=false; clearTimeout(busyT); render();
 }
@@ -685,11 +733,12 @@ function lobbyHTML(){
   return `${errHTML()}${shareHTML()}<section class="court">
     <div class="label">Saguão · ${n}/10 jogadores</div>
     <div class="headline">${n?'Quem está na mesa':'A mesa está vazia'}</div>
-    <div class="lobbylist">${ps.map((p,i)=>`<div class="p"><span><b>${esc(p.name)}</b>${p.id===myId&&mode!=='local'?' <span class="muted">(você)</span>':''}${S.lastWinner===p.id?' <span class="claim" style="--c:var(--gold);color:var(--gold-ink)">venceu a última</span>':''}</span>
-      ${(p.id===myId&&mode!=='local')||mode==='local'?`<button class="btn small ghost" data-do="leave" data-id="${esc(p.id)}">${p.id===myId&&mode!=='local'?'Sair':'Remover'}</button>`:''}</div>`).join('')||'<p class="muted" style="margin:0">Digite seu apelido acima para sentar. Cada amigo faz o mesmo no próprio celular.</p>'}</div>
+    <div class="lobbylist">${ps.map((p,i)=>{ const self=p.id===myId&&mode!=='local'; const canRm=self||isHost();
+      return `<div class="p"><span class="pname">${dot(p.id)}<b>${esc(p.name)}</b>${self?' <span class="muted">(você)</span>':''}${E.hostOf(S)===p.id&&mode!=='local'?' <span class="tag">anfitrião</span>':''}${S.lastWinner===p.id?' <span class="claim" style="--c:var(--gold);color:var(--gold-ink)">venceu a última</span>':''}</span>
+      ${canRm?`<button class="btn small ghost" data-do="leave" data-id="${esc(p.id)}">${self?'Sair':'Remover'}</button>`:''}</div>`}).join('')||'<p class="muted" style="margin:0">Digite seu apelido acima para sentar. Cada amigo faz o mesmo no próprio celular.</p>'}</div>
     ${local}
     <p class="muted" style="margin:0;font-size:14px">${cfg}</p>
-    <div class="row"><button class="btn gold" data-do="start" ${n<2||n>10||(!amIn&&mode!=='local')||ui.busy?'disabled':''}>Começar partida</button></div>
+    <div class="row">${isHost()?`<button class="btn gold" data-do="start" ${n<2||n>10||ui.busy?'disabled':''}>Começar partida</button>`:`<p class="muted" style="margin:0">${amIn?`Aguardando ${esc(hostName())} começar a partida.`:'Digite seu apelido acima para sentar.'}</p>`}</div>
   </section>`;
 }
 
@@ -698,13 +747,13 @@ function rivalsHTML(){
   return `<section class="rivals">${S.players.map((p,i)=>{
     const out=!E.alive(p); const turn=S.phase==='play'&&i===S.turn;
     let st='';
-    if(el.includes(p.id)){const r=R[p.id]; st=r&&r.key===pd.key?'<span class="status-dot done">respondeu</span>':'<span class="status-dot">pensando…</span>'}
+    if(el.includes(p.id)){const r=R[p.id]; st=r&&r.key===pd.key?'<span class="status-dot done">respondeu</span>':isOnline(p.id)===false?'<span class="status-dot" style="color:var(--danger)">offline</span>':'<span class="status-dot">pensando…</span>'}
     else if(S.lose&&S.lose[0]&&S.lose[0].id===p.id) st='<span class="status-dot">escolhendo carta</span>';
     else if(pd&&pd.stage==='exchange'&&pd.actor===p.id) st='<span class="status-dot">trocando</span>';
     else if(out) st='<span class="status-dot">fora</span>';
     else if(turn) st='<span class="status-dot" style="color:var(--gold)">vez</span>';
     const mine=p.id===me();
-    return `<div class="seat${turn?' turn':''}${out?' out':''}"><div class="who"><span class="name">${esc(p.name)}${mine?' <span class="muted">(você)</span>':''}</span>${coins(p.coins)}</div>
+    return `<div class="seat${turn?' turn':''}${out?' out':''}"><div class="who"><span class="name">${dot(p.id)}${esc(p.name)}${mine?' <span class="muted">(você)</span>':''}</span>${coins(p.coins)}</div>
       <div class="who"><div class="mini">${p.cards.map(c=>c.dead||S.phase==='over'?cardHTML(c.c,{size:'tiny',dead:c.dead}):cardHTML(null,{size:'tiny',back:true})).join('')}</div>${st}</div></div>`}).join('')}</section>`;
 }
 
@@ -726,7 +775,7 @@ function describe(){
 
 function decisionHTML(){
   const myId=me(); const mp=E.P(S,myId); if(!mp) return `<p class="muted" style="margin:0">Você está assistindo. Entra na próxima partida.</p>`;
-  if(S.phase==='over') return `<div class="row"><button class="btn gold" data-do="again">Jogar de novo</button><button class="btn ghost" data-do="lobby">Voltar ao saguão</button></div>`;
+  if(S.phase==='over') return isHost()?`<div class="row"><button class="btn gold" data-do="again">Jogar de novo</button><button class="btn ghost" data-do="lobby">Voltar ao saguão</button></div>`:`<p class="muted" style="margin:0">Aguardando ${esc(hostName())} começar a próxima partida.</p>`;
   const pd=S.pending, dis=ui.busy?'disabled':'';
   // perder influência
   if(S.lose.length&&S.lose[0].id===myId){
@@ -788,7 +837,7 @@ function gameHTML(){
   return `${errHTML()}${seatPicker()}${rivalsHTML()}
   <section class="court"><div class="label">Partida ${S.game||1} · baralho da corte: ${S.deck.length} cartas</div>${describe()}${decisionHTML()}</section>
   ${over?revealHTML():handHTML()}
-  <div class="row"><button class="btn small ghost" data-do="${ui.confirm==='abort'?'abort':'askabort'}">${ui.confirm==='abort'?'Confirmar: encerrar e voltar ao saguão':'Encerrar partida'}</button></div>`;
+  ${isHost()?'':'<!--'}<div class="row"><button class="btn small ghost" data-do="${ui.confirm==='abort'?'abort':'askabort'}">${ui.confirm==='abort'?'Confirmar: encerrar e voltar ao saguão':'Encerrar partida'}</button></div>${isHost()?'':'-->'}`;
 }
 function revealHTML(){
   return `<section class="panel"><div class="label">Cartas de todos</div><div class="reveal">${S.players.map(p=>`<div class="seat"><span class="name">${esc(p.name)}</span><div class="hand" style="gap:6px">${p.cards.map(c=>cardHTML(c.c,{size:'mid',dead:c.dead})).join('')}</div></div>`).join('')}</div></section>`;
@@ -813,7 +862,7 @@ document.addEventListener('click',e=>{
   if(!['askforce','askabort','force','abort'].includes(d)) ui.confirm=null;
   switch(d){
     case 'localmode': startLocal(); break;
-    case 'newroom': { const c=Array.from({length:6},()=>'abcdefghjkmnpqrstuvwxyz23456789'[E.rnd(31)]).join(''); location.hash='sala-'+c; break; }
+    case 'newroom': { const c=Array.from({length:6},()=>'abcdefghjkmnpqrstuvwxyz23456789'[E.rnd(31)]).join(''); ls('coup_host_'+c,'1'); location.hash='sala-'+c; break; }
     case 'copylink': { const t=location.href; const done=()=>{ui.copied=true;render();setTimeout(()=>{ui.copied=false;render()},2000)};
       if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done,()=>{const i=$('#roomlink');if(i){i.select()}}); else {const i=$('#roomlink');if(i)i.select()} break; }
     case 'leave': send('leave',{target:b.dataset.id}); break;
@@ -844,7 +893,7 @@ document.addEventListener('submit',e=>{
   if(e.target.dataset.form==='addlocal'){ const inp=$('#localname'); const name=inp.value.trim(); if(!name) return; const id='L'+Date.now().toString(36)+E.rnd(1e6);
     const ev=newEv('join',{name}); ev.p=id; store.send(ev).then(()=>{ if(!ui.seat) ui.seat=id; render(); const i=$('#localname'); if(i) i.focus(); }); }
 });
-setInterval(()=>{ if(S&&S.phase==='play'&&S.pending&&!document.querySelector('input:focus')) render(); },5000);
+setInterval(()=>{ if(S&&(mode==='mqtt'||(S.phase==='play'&&S.pending))&&!document.querySelector('#app input:focus')) render(); },5000);
 
 $('#nameinput').value=ls('coup_name')||'';
 paintRef(); paintConn(); boot();
