@@ -680,33 +680,67 @@ function dbStore(db){
    O estado mais recente fica retido no servidor, para quem entra ou reconecta. */
 function mqttStore(room){
   const base='coupdacasa/v1/'+room, T_EV=base+'/ev', T_SNAP=base+'/snap', T_HB=base+'/hb';
-  let st=null, synced=false, buf=[], syncTimer=null; const fs=[];
+  let st=null, synced=false, buf=[], syncTimer=null, lastMsg=0, hiddenAt=0; const fs=[];
+  const outbox=new Map(); // jogadas enviadas que ainda não voltaram aplicadas
   const emit=()=>fs.forEach(f=>f(st));
-  const client=mqtt.connect(BROKER,{clientId:'coup_'+DEVICE.slice(-10)+'_'+E.rnd(1e6),clean:true,keepalive:15,reconnectPeriod:2000,connectTimeout:10000,
+  const client=mqtt.connect(BROKER,{clientId:'coup_'+DEVICE.slice(-10)+'_'+E.rnd(1e6),clean:true,keepalive:10,reconnectPeriod:1500,connectTimeout:8000,
     will:{topic:T_HB,payload:JSON.stringify({p:DEVICE,off:true}),qos:0,retain:false}});
+  STORE_CLIENT=client;
   const beat=off=>{ if(client.connected) client.publish(T_HB,JSON.stringify({p:DEVICE,off:!!off}),{qos:0}); };
-  setInterval(()=>{ if(document.visibilityState!=='hidden') beat(false) },8000);
-  document.addEventListener('visibilitychange',()=>beat(document.visibilityState==='hidden'));
+  function markSynced(){ if(synced) return; synced=true; clearTimeout(syncTimer); const b=buf; buf=[]; b.forEach(applyOne); emit(); flush(true); }
+  function publishSnap(){ if(st&&client.connected) client.publish(T_SNAP,JSON.stringify({n:st.n||0,state:st}),{qos:1,retain:true}); }
+  function applyOne(ev){ outbox.delete(ev&&ev.id); const ns=E.applyEvent(st,ev); if(ns){ st=ns; return true } return false; }
+  /* Reenvia jogadas pendentes; descarta as que a mesa já aplicou ou que deixaram de valer */
+  function flush(force){
+    if(!client.connected||!synced) return;
+    const now=Date.now();
+    for(const [id,o] of outbox){
+      if(st&&st.seen&&st.seen.includes(id)){ outbox.delete(id); continue; }
+      if(E.applyEvent(st,o.ev)===null||now-o.first>45000){ outbox.delete(id); continue; }
+      if(force||now-o.sent>3000){ o.sent=now; client.publish(T_EV,JSON.stringify(o.ev),{qos:1}); }
+    }
+    PEND.n=outbox.size; PEND.since=outbox.size?Math.min(...[...outbox.values()].map(o=>o.first)):0;
+  }
+  /* Força uma conexão nova: o iPhone costuma matar a conexão em segundo plano sem avisar */
+  function revive(){ try{ client.end(true,{},()=>{ try{client.reconnect()}catch(e){} }); }catch(e){ try{client.reconnect()}catch(_){} } }
+  function wake(){
+    const away=hiddenAt?Date.now()-hiddenAt:0; hiddenAt=0;
+    if(!client.connected||away>3000||Date.now()-lastMsg>25000){ setConn('warn','Reconectando…'); revive(); }
+    else beat(false);
+  }
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ hiddenAt=Date.now(); beat(true); } else wake(); });
+  window.addEventListener('pageshow',e=>{ if(e.persisted) wake(); });
+  window.addEventListener('online',wake);
   window.addEventListener('pagehide',()=>beat(true));
-  function markSynced(){ if(synced) return; synced=true; clearTimeout(syncTimer); const b=buf; buf=[]; b.forEach(applyOne); emit(); }
-  function publishSnap(){ if(st) client.publish(T_SNAP,JSON.stringify({n:st.n||0,state:st}),{qos:1,retain:true}); }
-  function applyOne(ev){ const ns=E.applyEvent(st,ev); if(ns){ st=ns; return true } return false; }
-  client.on('connect',()=>{ setConn('live','Sala online'); synced=false; buf=[];
+  setInterval(()=>{ if(document.visibilityState==='hidden') return; beat(false);
+    if(client.connected&&Date.now()-lastMsg>25000) revive(); // nem o próprio sinal voltou: conexão morta
+    flush(false); render(); },5000);
+  client.on('connect',()=>{ setConn('live','Sala online'); synced=false; buf=[]; lastMsg=Date.now();
     client.subscribe([T_SNAP,T_EV],{qos:1}); client.subscribe(T_HB,{qos:0}); beat(false); PRES.since=Date.now();
-    clearTimeout(syncTimer); syncTimer=setTimeout(markSynced,3000); });
+    clearTimeout(syncTimer); syncTimer=setTimeout(markSynced,2500); });
   client.on('reconnect',()=>setConn('warn','Reconectando…'));
-  client.on('offline',()=>setConn('warn','Sem internet'));
+  client.on('offline',()=>setConn('warn','Sem conexão — tentando de novo'));
+  client.on('close',()=>{ if(!client.connected) setConn('warn','Reconectando…'); });
   client.on('error',()=>setConn('warn','Erro de conexão'));
   client.on('message',(topic,payload)=>{
+    lastMsg=Date.now();
     let m; try{ m=JSON.parse(payload.toString()) }catch(e){ return }
     if(topic===T_HB){ if(m&&typeof m.p==='string'){ const was=isOnline(m.p); PRES.map[m.p]={last:Date.now(),off:!!m.off}; if(isOnline(m.p)!==was) render(); } return; }
     if(topic===T_SNAP){ if(m&&m.state&&(!st||(m.n||0)>(st.n||0))){ st=m.state; emit(); } markSynced(); return; }
-    if(topic===T_EV){ if(!synced){ buf.push(m); return; } if(applyOne(m)){ emit(); if(m.p===DEVICE||m.p===me()) publishSnap(); else setTimeout(publishSnap,300+E.rnd(500)); } }
+    if(topic===T_EV){ if(!synced){ buf.push(m); return; } const mine=outbox.has(m&&m.id);
+      if(applyOne(m)){ emit(); if(mine||m.p===DEVICE) publishSnap(); else setTimeout(publishSnap,300+E.rnd(500)); }
+      else if(mine) emit();
+      flush(false); }
   });
-  STORE_CLIENT=client;
   return { onState(f){fs.push(f);if(synced)f(st)},
-    async send(ev){ if(!client.connected) throw {code:'offline'}; await new Promise((ok,bad)=>client.publish(T_EV,JSON.stringify(ev),{qos:1},e=>e?bad(e):ok())); return true; } };
+    async send(ev){
+      outbox.set(ev.id,{ev,first:Date.now(),sent:0}); PEND.n=outbox.size; PEND.since=PEND.since||Date.now();
+      if(!client.connected){ revive(); return true; }
+      outbox.get(ev.id).sent=Date.now(); client.publish(T_EV,JSON.stringify(ev),{qos:1});
+      return true;
+    } };
 }
+const PEND={n:0,since:0};
 function setConn(kind,text){ if(mode!=='local'){ connNote=`<span class="chip ${kind}">${esc(text)}</span>`; } paintConn(); }
 function paintConn(){
   const el=$('#conn'); if(!el) return;
@@ -783,7 +817,12 @@ function paintRef(){
   `<div class="item"><div class="card tiny back"><div class="emb"><i></i></div></div><p><b>Ações gerais</b><br>Renda +1 · Ajuda Externa +2 (Duque bloqueia) · Golpe por 7 (ninguém bloqueia)</p></div>`;
 }
 
+let pressing=false, pendRender=false;
+/* Não troca a tela no meio de um toque: no iPhone isso faz o toque se perder */
+document.addEventListener('pointerdown',()=>{pressing=true},true);
+['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>{pressing=false; if(pendRender){pendRender=false; setTimeout(render,350)}},true));
 function render(){
+  if(pressing){ pendRender=true; return; }
   const app=$('#app'); if(!app) return;
   const myId=me();
   const joined = S && (S.players.some(p=>p.id===myId) || (S.waiting||[]).some(p=>p.id===myId));
@@ -814,7 +853,11 @@ function shareHTML(){
     <input id="roomlink" class="input mono" readonly value="${esc(link)}" aria-label="Link da sala" style="font-size:13px">
     <div class="row"><a class="btn gold" href="${esc(wa)}" target="_blank" rel="noopener" style="text-decoration:none">Enviar no WhatsApp</a><button class="btn" data-do="copylink">${ui.copied?'Link copiado':'Copiar link'}</button></div></section>`;
 }
-function errHTML(){ return ui.err?`<div class="banner warn">${esc(ui.err)}</div>`:''; }
+function errHTML(){
+  let h=ui.err?`<div class="banner warn">${esc(ui.err)}</div>`:'';
+  if(mode==='mqtt'&&PEND.n){ const slow=Date.now()-PEND.since>4000; h+=`<div class="banner${slow?' warn':''}">${slow?'Sua jogada ainda não chegou na mesa. Reenviando…':'Enviando jogada…'}</div>`; }
+  return h;
+}
 
 function lobbyHTML(){
   const ps=S?S.players:[]; const n=ps.length; const myId=me();
@@ -1015,7 +1058,7 @@ document.addEventListener('submit',e=>{
   if(e.target.dataset.form==='addlocal'){ const inp=$('#localname'); const name=inp.value.trim(); if(!name) return; const id='L'+Date.now().toString(36)+E.rnd(1e6);
     const ev=newEv('join',{name}); ev.p=id; store.send(ev).then(()=>{ if(!ui.seat) ui.seat=id; render(); const i=$('#localname'); if(i) i.focus(); }); }
 });
-setInterval(()=>{ if(S&&(mode==='mqtt'||(S.phase==='play'&&S.pending))&&!document.querySelector('#app input:focus')) render(); },5000);
+setInterval(()=>{ if(S&&mode!=='mqtt'&&S.phase==='play'&&S.pending&&!document.querySelector('#app input:focus')) render(); },5000);
 
 $('#nameinput').value=ls('coup_name')||'';
 paintRef(); paintConn(); if(IMG){const ri=$('#rulesimg'); ri.src='cartas/instrucoes.webp'; ri.loading='lazy'; ri.hidden=false;} boot();
