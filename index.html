@@ -49,7 +49,40 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .btn.small{min-height:34px;padding:6px 10px;font-size:13px}
 .input{width:100%;min-width:0;background:var(--felt);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;color:var(--fg)}
 
-/* Rivais */
+/* Mesa */
+.tablewrap{margin-inline:-4px}
+.table{position:relative;width:100%;max-width:640px;margin:0 auto;aspect-ratio:4/5;max-height:78vh}
+@media (min-width:640px){.table{aspect-ratio:7/5}}
+.rail{position:absolute;inset:9% 11%;border-radius:50%;background:linear-gradient(160deg,#3a2818,#1d130b);box-shadow:0 18px 40px rgba(0,0,0,.55),inset 0 0 0 2px color-mix(in srgb,var(--gold) 55%,transparent),inset 0 0 0 7px #2a1c10}
+.felt{position:absolute;inset:7%;border-radius:50%;background:radial-gradient(ellipse at 50% 42%,#1e5a45 0%,#123d2f 55%,#0a261d 100%);box-shadow:inset 0 0 30px rgba(0,0,0,.6),inset 0 0 0 1px color-mix(in srgb,var(--gold) 35%,transparent);display:grid;place-items:center}
+.felt::before{content:"";position:absolute;inset:8%;border-radius:50%;border:1px dashed color-mix(in srgb,var(--gold) 22%,transparent)}
+.center{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;max-width:62%;padding:4px}
+.center .deck{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-bottom:2px}
+.center .cbig{font-family:var(--f-display);font-size:20px;line-height:1.1;color:var(--gold);text-wrap:balance}
+.center .csub{font-size:12.5px;color:var(--fg);opacity:.85;line-height:1.3}
+.center .csub.warn{color:var(--danger);opacity:1;font-weight:600}
+.center .arrow{color:var(--danger)}
+.pseat{position:absolute;transform:translate(-50%,-50%);width:82px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:0;color:var(--fg);font:inherit;z-index:2}
+.pseat.pickable{cursor:pointer}
+.pseat.pickable .av{box-shadow:0 0 0 2px var(--danger),0 0 0 6px color-mix(in srgb,var(--danger) 25%,transparent)}
+.av{position:relative;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;letter-spacing:.02em;color:#fff;
+  background:radial-gradient(circle at 35% 30%,hsl(var(--h) 45% 48%),hsl(var(--h) 50% 24%));border:2px solid #0b0d14;box-shadow:0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent),0 4px 10px rgba(0,0,0,.5)}
+.avdot{position:absolute;right:-2px;bottom:0;margin:0!important;width:11px!important;height:11px!important;border:2px solid #0b0d14}
+.pseat.turn .av{box-shadow:0 0 0 2px var(--gold),0 0 18px 4px color-mix(in srgb,var(--gold) 55%,transparent);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 2px var(--gold),0 0 26px 8px color-mix(in srgb,var(--gold) 35%,transparent)}}
+@media (prefers-reduced-motion:reduce){.pseat.turn .av{animation:none}}
+.turnchip{position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--gold);color:var(--gold-ink);font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:1px 6px;border-radius:999px}
+.pseat.target .av{box-shadow:0 0 0 2px var(--danger),0 0 16px 3px color-mix(in srgb,var(--danger) 50%,transparent)}
+.pseat.out{opacity:.45}
+.pn{font-size:12px;font-weight:600;max-width:82px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(10,12,18,.78);padding:1px 7px;border-radius:999px}
+.pn .you{color:var(--gold);font-weight:500;font-size:10.5px}
+.pc{display:flex;align-items:center;gap:3px;background:rgba(10,12,18,.6);padding:2px 5px;border-radius:8px}
+.pc .card.tiny{width:20px;height:28px;padding:2px}
+.coins.small{font-size:12px;gap:3px;margin-left:2px}.coins.small .coin{width:10px;height:10px}
+.pst{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.pst.ok{color:var(--ok)}.pst.bad{color:var(--danger)}.pst.gold{color:var(--gold)}.pst.wait{color:var(--fg);opacity:.75}
+@media (max-width:400px){.pseat{width:70px}.av{width:36px;height:36px;font-size:12.5px}.pn{max-width:72px;font-size:11px}.center .cbig{font-size:17px}}
+/* Rivais (lista antiga) */
 .rivals{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .seat{background:var(--felt);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .seat.turn{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
@@ -783,21 +816,52 @@ function lobbyHTML(){
   </section>`;
 }
 
-function rivalsHTML(){
+function hueOf(id){let h=0;for(let i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0;return h%360}
+function initials(n){const w=String(n).trim().split(/\s+/);return ((w[0]||'?')[0]+(w[1]?w[1][0]:(w[0]||'')[1]||'')).toUpperCase()}
+function seatStatus(p,i){
   const pd=S.pending; const el=pd&&E.WINDOWS.includes(pd.stage)?E.eligible(S):[];
-  return `<section class="rivals">${S.players.map((p,i)=>{
-    const out=!E.alive(p); const turn=S.phase==='play'&&i===S.turn;
-    let st='';
-    if(el.includes(p.id)){const r=R[p.id]; st=r&&r.key===pd.key?'<span class="status-dot done">respondeu</span>':isOnline(p.id)===false?'<span class="status-dot" style="color:var(--danger)">offline</span>':'<span class="status-dot">pensando…</span>'}
-    else if(S.lose&&S.lose[0]&&S.lose[0].id===p.id) st='<span class="status-dot">escolhendo carta</span>';
-    else if(pd&&pd.stage==='exchange'&&pd.actor===p.id) st='<span class="status-dot">trocando</span>';
-    else if(out) st='<span class="status-dot">fora</span>';
-    else if(turn) st='<span class="status-dot" style="color:var(--gold)">vez</span>';
-    const mine=p.id===me();
-    return `<div class="seat${turn?' turn':''}${out?' out':''}"><div class="who"><span class="name">${dot(p.id)}${esc(p.name)}${mine?' <span class="muted">(você)</span>':''}</span>${coins(p.coins)}</div>
-      <div class="who"><div class="mini">${p.cards.map(c=>c.dead||S.phase==='over'?cardHTML(c.c,{size:'tiny',dead:c.dead}):cardHTML(null,{size:'tiny',back:true})).join('')}</div>${st}</div></div>`}).join('')}</section>`;
+  if(!E.alive(p)) return ['fora',''];
+  if(el.includes(p.id)){const r=R[p.id]; if(r&&r.key===pd.key) return [r.kind==='challenge'?'desafiou':r.kind==='block'?'bloqueou':'passou','ok']; return isOnline(p.id)===false?['offline','bad']:['pensando…','wait'];}
+  if(S.lose&&S.lose[0]&&S.lose[0].id===p.id) return ['escolhendo carta','wait'];
+  if(pd&&pd.stage==='exchange'&&pd.actor===p.id) return ['trocando cartas','wait'];
+  if(S.phase==='play'&&i===S.turn&&!pd) return [p.id===me()?'sua vez':'jogando','gold'];
+  if(isOnline(p.id)===false) return ['offline','bad'];
+  return ['',''];
 }
-
+function centerHTML(){
+  const pd=S.pending, nm=id=>esc(E.nm(S,id));
+  let main;
+  if(S.phase==='over'){const w=E.P(S,S.winner); main=`<div class="cbig">${w?esc(w.name):'—'}</div><div class="csub">venceu a partida</div>`;}
+  else if(!pd){const p=S.players[S.turn]; main=`<div class="csub">Vez de</div><div class="cbig">${esc(p.name)}</div>${p.coins>=10?'<div class="csub warn">Golpe obrigatório</div>':''}`;}
+  else{
+    const A=ACT[pd.type];
+    const stage={challengeAction:'Alguém desafia?',block:'Alguém bloqueia?',challengeBlock:`${nm(pd.blocker)} bloqueou ${claimTag(pd.blockCard)}`,exchange:'Escolhendo cartas…',wait:S.lose.length?`${nm(S.lose[0].id)} perde influência`:'Resolvendo…'}[pd.stage]||'';
+    main=`<div class="csub">${nm(pd.actor)}${pd.target?` <span class="arrow">→</span> ${nm(pd.target)}`:''}</div><div class="cbig">${A.label}</div>${A.claim?`<div>${claimTag(A.claim)}</div>`:''}<div class="csub">${stage}</div>`;
+  }
+  return `<div class="center"><div class="deck" title="Baralho da corte">${cardHTML(null,{size:'tiny',back:true})}<span class="mono">${S.deck.length}</span></div>${main}</div>`;
+}
+function tableHTML(){
+  const n=S.players.length, myIdx=Math.max(0,S.players.findIndex(p=>p.id===me()));
+  const pd=S.pending, picking=!!ui.sel&&!pd&&S.players[S.turn]&&S.players[S.turn].id===me();
+  const seats=S.players.map((p,i)=>{
+    const k=(i-myIdx+n)%n, ang=Math.PI/2+k*2*Math.PI/n;
+    const x=50+41*Math.cos(ang), y=50+42*Math.sin(ang);
+    const out=!E.alive(p), turn=S.phase==='play'&&i===S.turn, mine=p.id===me();
+    const tgt=pd&&pd.target===p.id&&S.phase==='play';
+    const canPick=picking&&!out&&!mine;
+    const [st,cls]=seatStatus(p,i);
+    const cards=p.cards.map(c=>c.dead||S.phase==='over'?cardHTML(c.c,{size:'tiny',dead:c.dead}):cardHTML(null,{size:'tiny',back:true})).join('');
+    const tag=canPick?'button':'div';
+    return `<${tag} class="pseat${turn?' turn':''}${out?' out':''}${tgt?' target':''}${mine?' me':''}${canPick?' pickable':''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" ${canPick?`data-do="target" data-id="${esc(p.id)}" aria-label="Escolher ${esc(p.name)} como alvo"`:''}>
+      <div class="av" style="--h:${hueOf(p.id)}">${esc(initials(p.name))}${dot(p.id).replace('class="dot','class="dot avdot')}${turn?'<span class="turnchip">vez</span>':''}</div>
+      <div class="pn">${esc(p.name)}${mine?' <span class="you">você</span>':''}</div>
+      <div class="pc">${cards}<span class="coins small"><span class="coin"></span>${p.coins}</span></div>
+      ${st?`<div class="pst ${cls}">${st}</div>`:''}
+    </${tag}>`;
+  }).join('');
+  return `<section class="tablewrap"><div class="table"><div class="rail"><div class="felt">${centerHTML()}</div></div>${seats}</div>
+    ${picking?'<p class="muted" style="margin:6px 0 0;text-align:center;font-size:13px">Toque num jogador na mesa para escolher o alvo.</p>':''}</section>`;
+}
 function describe(){
   const pd=S.pending, nm=id=>esc(E.nm(S,id));
   if(S.phase==='over'){const w=E.P(S,S.winner);return `<div class="winner">${w?esc(w.name)+' venceu':'Fim de partida'}</div>`}
@@ -875,8 +939,8 @@ function seatPicker(){
 function gameHTML(){
   if(mode==='local'&&!E.P(S,ui.seat)) ui.seat=S.players[0].id;
   const over=S.phase==='over';
-  return `${errHTML()}${seatPicker()}${rivalsHTML()}
-  <section class="court"><div class="label">Partida ${S.game||1} · baralho da corte: ${S.deck.length} cartas</div>${describe()}${decisionHTML()}</section>
+  return `${errHTML()}${seatPicker()}${tableHTML()}
+  <section class="court"><div class="label">Partida ${S.game||1}</div>${describe()}${decisionHTML()}</section>
   ${over?revealHTML():handHTML()}
   ${isHost()?'':'<!--'}<div class="row"><button class="btn small ghost" data-do="${ui.confirm==='abort'?'abort':'askabort'}">${ui.confirm==='abort'?'Confirmar: encerrar e voltar ao saguão':'Encerrar partida'}</button></div>${isHost()?'':'-->'}`;
 }
