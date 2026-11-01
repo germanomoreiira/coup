@@ -307,7 +307,7 @@ const E = (() => {
   function start(s) {
     if (!s || s.phase !== 'lobby') return null;
     const n = s.players.length; if (n < 2 || n > 10) return null;
-    let si = s.players.findIndex(p => p.id === s.lastWinner); if (si < 0) si = rnd(n);
+    const si = rnd(n); // primeiro jogador sorteado a cada partida
     s.game = (s.game || 0) + 1; s.log = []; s.pending = null; s.lose = []; s.winner = null; s.turn = si; s.setup = null;
     s.players.forEach(p => { p.coins = 2; p.cards = []; });
     if (n === 2) {
@@ -323,7 +323,7 @@ const E = (() => {
       s.players.forEach(p => { p.cards = [{ c: s.deck.pop(), dead: false }, { c: s.deck.pop(), dead: false }]; });
       s.phase = 'play';
       log(s, `Partida iniciada: ${n} jogadores, baralho de ${per * 5} cartas (${per} de cada personagem).`);
-      log(s, `${s.players[si].name} começa.`);
+      log(s, `Sorteio: ${s.players[si].name} começa.`);
     }
     return s;
   }
@@ -1079,7 +1079,7 @@ setInterval(()=>{ if(S&&mode!=='mqtt'&&S.phase==='play'&&S.pending&&!document.qu
 
 $('#nameinput').value=ls('coup_name')||'';
 /* Atualização automática: se houver versão nova publicada, recarrega mantendo a sala */
-const BUILD='1793499163';
+const BUILD='1793499343';
 if(window.COUP_WEB&&BUILD.indexOf('__')!==0){
   const check=()=>fetch(location.pathname+'?chk='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{
     const m=/const BUILD='(\d+)'/.exec(t); if(m&&m[1]!==BUILD){ location.replace(location.pathname+'?v='+m[1]+location.hash); }
