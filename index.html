@@ -972,7 +972,12 @@ function decisionHTML(){
     if(!el.includes(myId)) return waitHTML();
     const r=R[myId]; if(r&&r.key===pd.key) return `<p class="muted" style="margin:0">Resposta enviada. Aguardando os outros…</p>`+forceHTML();
     const A=ACT[pd.type];
-    if(pd.stage==='challengeAction') return `<div class="row"><button class="btn danger" data-do="resp" data-k="challenge" ${dis}>Desafiar ${E.nm(S,pd.actor)}</button><button class="btn" data-do="resp" data-k="pass" ${dis}>Deixar passar</button></div>`;
+    if(pd.stage==='challengeAction'){
+      const canBlockNext=A.block&&(A.blockAny||pd.target===myId);
+      const passLabel=canBlockNext?'Não desafiar (ainda posso bloquear)':'Não desafiar';
+      const hint=canBlockNext?`<p class="muted" style="margin:0;font-size:13px">Se não desafiar, logo depois você poderá bloquear alegando ${A.block.map(b=>CH[b].n).join(' ou ')}, tendo ou não a carta.</p>`:'';
+      return `<div class="row"><button class="btn danger" data-do="resp" data-k="challenge" ${dis}>Desafiar ${esc(E.nm(S,pd.actor))}</button><button class="btn" data-do="resp" data-k="pass" ${dis}>${passLabel}</button></div>${hint}`;
+    }
     if(pd.stage==='block') return `<div class="row">${A.block.map(b=>`<button class="btn danger" data-do="resp" data-k="block" data-card="${b}" ${dis}>Bloquear com ${CH[b].n}</button>`).join('')}<button class="btn" data-do="resp" data-k="pass" ${dis}>${A.blockAny?'Não bloquear':'Aceitar'}</button></div>`;
     return `<div class="row"><button class="btn danger" data-do="resp" data-k="challenge" ${dis}>Desafiar bloqueio</button><button class="btn" data-do="resp" data-k="pass" ${dis}>Aceitar bloqueio</button></div>`;
   }
@@ -1074,7 +1079,7 @@ setInterval(()=>{ if(S&&mode!=='mqtt'&&S.phase==='play'&&S.pending&&!document.qu
 
 $('#nameinput').value=ls('coup_name')||'';
 /* Atualização automática: se houver versão nova publicada, recarrega mantendo a sala */
-const BUILD='1793498295';
+const BUILD='1793499163';
 if(window.COUP_WEB&&BUILD.indexOf('__')!==0){
   const check=()=>fetch(location.pathname+'?chk='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{
     const m=/const BUILD='(\d+)'/.exec(t); if(m&&m[1]!==BUILD){ location.replace(location.pathname+'?v='+m[1]+location.hash); }
