@@ -78,10 +78,18 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .pn .you{color:var(--gold);font-weight:500;font-size:10.5px}
 .pc{display:flex;align-items:center;gap:3px;background:rgba(10,12,18,.6);padding:2px 5px;border-radius:8px}
 .pc .card.tiny{width:20px;height:28px;padding:2px}
+.pc .card.tiny.img{width:21px;height:28px;padding:0}
 .coins.small{font-size:12px;gap:3px;margin-left:2px}.coins.small .coin{width:10px;height:10px}
 .pst{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
 .pst.ok{color:var(--ok)}.pst.bad{color:var(--danger)}.pst.gold{color:var(--gold)}.pst.wait{color:var(--fg);opacity:.75}
 @media (max-width:400px){.pseat{width:70px}.av{width:36px;height:36px;font-size:12.5px}.pn{max-width:72px;font-size:11px}.center .cbig{font-size:17px}}
+/* Cartas ilustradas */
+.card.img{padding:0;background:#0d0f1c;border-color:rgba(0,0,0,.6)}
+.card.img::before,.card.img::after{display:none}
+.card.img>img{width:100%;height:100%;object-fit:cover;display:block;user-select:none;-webkit-user-select:none}
+.card.img.dead::after{display:block;content:"";position:absolute;inset:0;border:0;border-radius:0;background:linear-gradient(135deg,transparent 46.5%,var(--danger) 46.5% 53.5%,transparent 53.5%)}
+.card.img.hidden-face{background:repeating-linear-gradient(45deg,transparent 0 9px,color-mix(in srgb,var(--card-gold) 22%,transparent) 9px 10px),repeating-linear-gradient(-45deg,transparent 0 9px,color-mix(in srgb,var(--card-gold) 22%,transparent) 9px 10px),radial-gradient(circle at 50% 50%,#262a46,#0d0f1c 75%)}
+.rulesimg{width:100%;max-width:520px;border-radius:12px;display:block;margin:0 auto}
 /* Rivais (lista antiga) */
 .rivals{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .seat{background:var(--felt);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -104,6 +112,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .card .art{width:100%;flex:1;display:grid;place-items:center;min-height:0}
 .card .art svg{width:96%;height:96%;display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
 .card.big{width:122px;height:178px;padding:10px 9px 11px;gap:3px}
+.card.big.img{width:140px;height:210px}
+.card.mid.img{width:96px;height:144px}
 .card.mid{width:94px;height:136px;padding:8px 7px 9px;gap:2px}
 .card.tiny{width:32px;height:44px;padding:3px;border-radius:5px;box-shadow:none}
 .card.tiny::before{inset:1.5px;border-radius:4px}.card.tiny::after{display:none}
@@ -172,7 +182,7 @@ details.rules summary::-webkit-details-marker{display:none}
 .banner.warn{border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
 .winner{font-family:var(--f-display);font-size:30px;color:var(--gold);text-align:center}
 .reveal{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-@media (max-width:420px){.card.big{width:100px;height:146px}.headline{font-size:19px}.brand h1{font-size:24px}}
+@media (max-width:420px){.card.big{width:100px;height:146px}.card.big.img{width:134px;height:201px}.headline{font-size:19px}.brand h1{font-size:24px}}
 </style>
 
 <div class="wrap" id="root">
@@ -198,6 +208,7 @@ details.rules summary::-webkit-details-marker{display:none}
   </main>
   <details class="panel rules" id="rules">
     <summary>Cartas e regras</summary>
+    <img id="rulesimg" class="rulesimg" alt="Instruções do Coup: objetivo, preparação, ações, cartas e fim da partida" hidden>
     <div class="ref" id="refcards"></div>
     <ul>
       <li>Cada jogador começa com 2 cartas viradas (influências) e 2 moedas. Perdeu as duas, está fora. O último com influência vence.</li>
@@ -752,9 +763,15 @@ async function send(k,x){
 }
 
 /* ---------- Desenho ---------- */
+const IMG=!!window.COUP_WEB;
+if(IMG){ ['duque','assassino','capitao','embaixador','condessa'].forEach(t=>{ new Image().src=`cartas/${t}.webp`; new Image().src=`cartas/${t}-mini.webp`; }); }
 function cardHTML(t,o){o=o||{};
   if(o.back) return `<div class="card ${o.size||'mid'} back"><div class="emb"><i></i></div></div>`;
   const c=CH[t]; const size=o.size||'mid';
+  if(IMG){
+    const src=size==='tiny'?`cartas/${t}-mini.webp`:`cartas/${t}.webp`;
+    return `<div class="card ${size} img c-${t}${o.dead?' dead':''}${o.pick?' pick':''}${o.sel?' sel':''}${o.hide?' hidden-face':''}" ${o.attr||''} title="${c.n}">${o.hide?'<div class="emb"><i></i></div>':''}<img src="${src}" alt="${c.n}" decoding="async" draggable="false"></div>`;
+  }
   const inner = (o.hide?'<div class="emb"><i></i></div>':'')+(size==='tiny' ? `<div class="art">${ICON[t]}</div>` : `<div class="art">${ICON[t]}</div><div class="cn">${c.n}</div>${size==='big'?`<div class="ca">${esc(c.a||c.b)}</div>`:''}`);
   return `<div class="card ${size} c-${t}${o.dead?' dead':''}${o.pick?' pick':''}${o.sel?' sel':''}${o.hide?' hidden-face':''}" ${o.attr||''} title="${c.n}">${inner}</div>`;
 }
@@ -1001,7 +1018,7 @@ document.addEventListener('submit',e=>{
 setInterval(()=>{ if(S&&(mode==='mqtt'||(S.phase==='play'&&S.pending))&&!document.querySelector('#app input:focus')) render(); },5000);
 
 $('#nameinput').value=ls('coup_name')||'';
-paintRef(); paintConn(); boot();
+paintRef(); paintConn(); if(IMG){const ri=$('#rulesimg'); ri.src='cartas/instrucoes.webp'; ri.loading='lazy'; ri.hidden=false;} boot();
 })();
 </script>
 </body></html>
