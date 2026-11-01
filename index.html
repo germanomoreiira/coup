@@ -809,7 +809,7 @@ function cardHTML(t,o){o=o||{};
   const inner = (o.hide?'<div class="emb"><i></i></div>':'')+(size==='tiny' ? `<div class="art">${ICON[t]}</div>` : `<div class="art">${ICON[t]}</div><div class="cn">${c.n}</div>${size==='big'?`<div class="ca">${esc(c.a||c.b)}</div>`:''}`);
   return `<div class="card ${size} c-${t}${o.dead?' dead':''}${o.pick?' pick':''}${o.sel?' sel':''}${o.hide?' hidden-face':''}" ${o.attr||''} title="${c.n}">${inner}</div>`;
 }
-const claimTag=t=>`<span class="claim c-${t}" style="--c:var(--${t})">${CH[t].n}</span>`;
+const claimTag=t=>CH[t]?`<span class="claim c-${t}" style="--c:var(--${t})">${CH[t].n}</span>`:'';
 const coins=n=>`<span class="coins"><span class="coin"></span>${n}</span>`;
 
 function paintRef(){
@@ -826,7 +826,8 @@ function autoRender(){
   if(pressAt&&Date.now()-pressAt<800){ clearTimeout(pendT); pendT=setTimeout(autoRender,350); return; }
   render();
 }
-function render(){
+function render(){ try{ renderInner(); }catch(e){ console.error(e); const a=$('#app'); if(a&&!a.querySelector('.banner.crash')) a.insertAdjacentHTML('afterbegin','<div class="banner warn crash">Algo falhou ao desenhar a mesa. Recarregue a página; a partida continua de onde parou.</div>'); } }
+function renderInner(){
   const app=$('#app'); if(!app) return;
   const myId=me();
   const joined = S && (S.players.some(p=>p.id===myId) || (S.waiting||[]).some(p=>p.id===myId));
@@ -899,7 +900,13 @@ function centerHTML(){
   else if(!pd){const p=S.players[S.turn]; main=`<div class="csub">Vez de</div><div class="cbig">${esc(p.name)}</div>${p.coins>=10?'<div class="csub warn">Golpe obrigatório</div>':''}`;}
   else{
     const A=ACT[pd.type];
-    const stage={challengeAction:'Alguém desafia?',block:'Alguém bloqueia?',challengeBlock:`${nm(pd.blocker)} bloqueou ${claimTag(pd.blockCard)}`,exchange:'Escolhendo cartas…',wait:S.lose.length?`${nm(S.lose[0].id)} perde influência`:'Resolvendo…'}[pd.stage]||'';
+    let stage='';
+    if(pd.stage==='challengeAction') stage='Alguém desafia?';
+    else if(pd.stage==='block') stage='Alguém bloqueia?';
+    else if(pd.stage==='challengeBlock'&&pd.blockCard) stage=`${nm(pd.blocker)} bloqueou ${claimTag(pd.blockCard)}`;
+    else if(pd.stage==='exchange') stage='Escolhendo cartas…';
+    else if(S.lose.length) stage=`${nm(S.lose[0].id)} perde influência`;
+    else stage='Resolvendo…';
     main=`<div class="csub">${nm(pd.actor)}${pd.target?` <span class="arrow">→</span> ${nm(pd.target)}`:''}</div><div class="cbig">${A.label}</div>${A.claim?`<div>${claimTag(A.claim)}</div>`:''}<div class="csub">${stage}</div>`;
   }
   return `<div class="center"><div class="deck" title="Baralho da corte">${cardHTML(null,{size:'tiny',back:true})}<span class="mono">${S.deck.length}</span></div>${main}</div>`;
@@ -1067,7 +1074,7 @@ setInterval(()=>{ if(S&&mode!=='mqtt'&&S.phase==='play'&&S.pending&&!document.qu
 
 $('#nameinput').value=ls('coup_name')||'';
 /* Atualização automática: se houver versão nova publicada, recarrega mantendo a sala */
-const BUILD='1793498187';
+const BUILD='1793498295';
 if(window.COUP_WEB&&BUILD.indexOf('__')!==0){
   const check=()=>fetch(location.pathname+'?chk='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{
     const m=/const BUILD='(\d+)'/.exec(t); if(m&&m[1]!==BUILD){ location.replace(location.pathname+'?v='+m[1]+location.hash); }
