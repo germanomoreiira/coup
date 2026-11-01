@@ -685,7 +685,7 @@ function mqttStore(room){
   const emit=()=>fs.forEach(f=>f(st));
   const client=mqtt.connect(BROKER,{clientId:'coup_'+DEVICE.slice(-10)+'_'+E.rnd(1e6),clean:true,keepalive:10,reconnectPeriod:1500,connectTimeout:8000,
     will:{topic:T_HB,payload:JSON.stringify({p:DEVICE,off:true}),qos:0,retain:false}});
-  STORE_CLIENT=client;
+  STORE_CLIENT=client; window.__coupConn=client;
   const beat=off=>{ if(client.connected) client.publish(T_HB,JSON.stringify({p:DEVICE,off:!!off}),{qos:0}); };
   function markSynced(){ if(synced) return; synced=true; clearTimeout(syncTimer); const b=buf; buf=[]; b.forEach(applyOne); emit(); flush(true); }
   function publishSnap(){ if(st&&client.connected) client.publish(T_SNAP,JSON.stringify({n:st.n||0,state:st}),{qos:1,retain:true}); }
