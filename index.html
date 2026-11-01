@@ -714,7 +714,7 @@ function mqttStore(room){
   window.addEventListener('pagehide',()=>beat(true));
   setInterval(()=>{ if(document.visibilityState==='hidden') return; beat(false);
     if(client.connected&&Date.now()-lastMsg>25000) revive(); // nem o próprio sinal voltou: conexão morta
-    flush(false); render(); },5000);
+    flush(false); autoRender(); },5000);
   client.on('connect',()=>{ setConn('live','Sala online'); synced=false; buf=[]; lastMsg=Date.now();
     client.subscribe([T_SNAP,T_EV],{qos:1}); client.subscribe(T_HB,{qos:0}); beat(false); PRES.since=Date.now();
     clearTimeout(syncTimer); syncTimer=setTimeout(markSynced,2500); });
@@ -725,7 +725,7 @@ function mqttStore(room){
   client.on('message',(topic,payload)=>{
     lastMsg=Date.now();
     let m; try{ m=JSON.parse(payload.toString()) }catch(e){ return }
-    if(topic===T_HB){ if(m&&typeof m.p==='string'){ const was=isOnline(m.p); PRES.map[m.p]={last:Date.now(),off:!!m.off}; if(isOnline(m.p)!==was) render(); } return; }
+    if(topic===T_HB){ if(m&&typeof m.p==='string'){ const was=isOnline(m.p); PRES.map[m.p]={last:Date.now(),off:!!m.off}; if(isOnline(m.p)!==was) autoRender(); } return; }
     if(topic===T_SNAP){ if(m&&m.state&&(!st||(m.n||0)>(st.n||0))){ st=m.state; emit(); } markSynced(); return; }
     if(topic===T_EV){ if(!synced){ buf.push(m); return; } const mine=outbox.has(m&&m.id);
       if(applyOne(m)){ emit(); if(mine||m.p===DEVICE) publishSnap(); else setTimeout(publishSnap,300+E.rnd(500)); }
@@ -780,7 +780,7 @@ async function boot(){
 }
 let ROOM=null;
 window.addEventListener('hashchange',()=>{ if(window.COUP_WEB&&roomFromHash()!==ROOM) location.reload(); });
-function attach(st,m){ store=st; mode=m; store.onState(s=>{S=s; R=(s&&s.resp)||{}; render()}); paintConn(); render(); }
+function attach(st,m){ store=st; mode=m; store.onState(s=>{S=s; R=(s&&s.resp)||{}; autoRender()}); paintConn(); render(); }
 function startLocal(){ mode='local'; attach(memoryStore(),'local'); }
 
 /* ---------- Ações ---------- */
@@ -817,12 +817,16 @@ function paintRef(){
   `<div class="item"><div class="card tiny back"><div class="emb"><i></i></div></div><p><b>Ações gerais</b><br>Renda +1 · Ajuda Externa +2 (Duque bloqueia) · Golpe por 7 (ninguém bloqueia)</p></div>`;
 }
 
-let pressing=false, pendRender=false;
-/* Não troca a tela no meio de um toque: no iPhone isso faz o toque se perder */
-document.addEventListener('pointerdown',()=>{pressing=true},true);
-['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>{pressing=false; if(pendRender){pendRender=false; setTimeout(render,350)}},true));
+let pressAt=0, pendT=null;
+/* Atualizações automáticas esperam o dedo sair da tela (no iPhone, trocar a tela no meio do toque anula o toque).
+   A espera dura no máximo 0,8 s e nunca bloqueia a resposta ao próprio toque. */
+document.addEventListener('pointerdown',()=>{pressAt=Date.now()},true);
+['pointerup','pointercancel','touchend','touchcancel'].forEach(t=>document.addEventListener(t,()=>{pressAt=0},true));
+function autoRender(){
+  if(pressAt&&Date.now()-pressAt<800){ clearTimeout(pendT); pendT=setTimeout(autoRender,350); return; }
+  render();
+}
 function render(){
-  if(pressing){ pendRender=true; return; }
   const app=$('#app'); if(!app) return;
   const myId=me();
   const joined = S && (S.players.some(p=>p.id===myId) || (S.waiting||[]).some(p=>p.id===myId));
@@ -1022,6 +1026,7 @@ function logHTML(){
 
 /* ---------- Eventos ---------- */
 document.addEventListener('click',e=>{
+  pressAt=0;
   const b=e.target.closest('[data-do]'); if(!b||b.disabled) return;
   const d=b.dataset.do, myId=me();
   if(!['askforce','askabort','force','abort'].includes(d)) ui.confirm=null;
@@ -1061,6 +1066,15 @@ document.addEventListener('submit',e=>{
 setInterval(()=>{ if(S&&mode!=='mqtt'&&S.phase==='play'&&S.pending&&!document.querySelector('#app input:focus')) render(); },5000);
 
 $('#nameinput').value=ls('coup_name')||'';
+/* Atualização automática: se houver versão nova publicada, recarrega mantendo a sala */
+const BUILD='1793498187';
+if(window.COUP_WEB&&BUILD.indexOf('__')!==0){
+  const check=()=>fetch(location.pathname+'?chk='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{
+    const m=/const BUILD='(\d+)'/.exec(t); if(m&&m[1]!==BUILD){ location.replace(location.pathname+'?v='+m[1]+location.hash); }
+  }).catch(()=>{});
+  check(); setInterval(check,120000);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') check(); });
+}
 paintRef(); paintConn(); if(IMG){const ri=$('#rulesimg'); ri.src='cartas/instrucoes.webp'; ri.loading='lazy'; ri.hidden=false;} boot();
 })();
 </script>
