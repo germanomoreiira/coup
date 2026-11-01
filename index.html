@@ -921,7 +921,7 @@ function decisionHTML(){
 function waitHTML(){ return `<p class="muted" style="margin:0">Aguardando…</p>`+forceHTML(); }
 function forceHTML(){
   const pd=S.pending; const since=pd&&pd.since||0;
-  if(S.phase!=='play'||Date.now()-since<25000) return '';
+  if(S.phase!=='play'||!pd||!since||Date.now()-since<25000) return '';
   if(ui.confirm==='force') return `<div class="row"><span class="muted" style="font-size:13px">Quem não respondeu será considerado como “passou”.</span><button class="btn small danger" data-do="force">Confirmar</button><button class="btn small ghost" data-do="cancelconfirm">Cancelar</button></div>`;
   return `<div class="row"><button class="btn small ghost" data-do="askforce">Alguém saiu? Destravar a mesa</button></div>`;
 }
